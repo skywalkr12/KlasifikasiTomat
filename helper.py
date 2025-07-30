@@ -3,6 +3,7 @@ import streamlit as st
 import torch
 from PIL import Image
 import torchvision.transforms as transforms
+import torchvision.models as models
 
 CLASS_NAMES = [
     "Early Blight", "Late Blight", "Leaf Mold", "Septoria Leaf Spot", 
@@ -17,7 +18,9 @@ transform = transforms.Compose([
 
 @st.cache_resource
 def load_model():
-    model = torch.load("model/plant-disease-model-complete.pth", map_location="cpu")
+    model = models.resnet18(weights=None, num_classes=9)   # atau sesuai arsitektur yang dipakai
+    state_dict = torch.load("model/resnet_97_56.pt", map_location="cpu")
+    model.load_state_dict(state_dict)
     model.eval()
     return model
 
