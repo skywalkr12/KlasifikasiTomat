@@ -36,36 +36,61 @@ def accuracy(outputs, labels):
     _, preds = torch.max(outputs, dim=1)
     return torch.tensor(torch.sum(preds == labels).item() / len(preds))
 
-# Block konvolusi dasar
-class ConvBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, pool=False):
+class ResNet18Direct(ImageClassificationBase):
+    def __init__(self, num_classes=10):  # sesuai checkpoint
         super().__init__()
-        layers = [
-            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
-            nn.BatchNorm2d(out_channels),
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(3, 64, kernel_size=3, padding=1),
+            nn.BatchNorm2d(64),
             nn.ReLU(inplace=True)
-        ]
-        if pool: layers.append(nn.MaxPool2d(2))
-        self.conv = nn.Sequential(*layers)
-
-    def forward(self, xb):
-        return self.conv(xb)
-
-# Model utama sesuai notebook
-class ResNet18(ImageClassificationBase):
-    def __init__(self, in_channels, num_diseases):
-        super().__init__()
-        self.conv1 = ConvBlock(in_channels, 64)
-        self.conv2 = ConvBlock(64, 128, pool=True)
-        self.res1 = nn.Sequential(ConvBlock(128, 128), ConvBlock(128, 128))
-        self.conv3 = ConvBlock(128, 256, pool=True)
-        self.conv4 = ConvBlock(256, 512, pool=True)
-        self.res2 = nn.Sequential(ConvBlock(512, 512), ConvBlock(512, 512))
+        )
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(64, 128, kernel_size=3, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(2)
+        )
+        self.res1 = nn.Sequential(
+            nn.Sequential(
+                nn.Conv2d(128, 128, kernel_size=3, padding=1),
+                nn.BatchNorm2d(128),
+                nn.ReLU(inplace=True)
+            ),
+            nn.Sequential(
+                nn.Conv2d(128, 128, kernel_size=3, padding=1),
+                nn.BatchNorm2d(128),
+                nn.ReLU(inplace=True)
+            )
+        )
+        self.conv3 = nn.Sequential(
+            nn.Conv2d(128, 256, kernel_size=3, padding=1),
+            nn.BatchNorm2d(256),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(2)
+        )
+        self.conv4 = nn.Sequential(
+            nn.Conv2d(256, 512, kernel_size=3, padding=1),
+            nn.BatchNorm2d(512),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(2)
+        )
+        self.res2 = nn.Sequential(
+            nn.Sequential(
+                nn.Conv2d(512, 512, kernel_size=3, padding=1),
+                nn.BatchNorm2d(512),
+                nn.ReLU(inplace=True)
+            ),
+            nn.Sequential(
+                nn.Conv2d(512, 512, kernel_size=3, padding=1),
+                nn.BatchNorm2d(512),
+                nn.ReLU(inplace=True)
+            )
+        )
         self.classifier = nn.Sequential(
             nn.MaxPool2d(4),
             nn.Flatten(),
             nn.Dropout(0.3),
-            nn.Linear(512, num_diseases)
+            nn.Linear(512, num_classes)
         )
 
     def forward(self, xb):
@@ -75,8 +100,8 @@ class ResNet18(ImageClassificationBase):
         out = self.conv3(out)
         out = self.conv4(out)
         out = self.res2(out) + out
-        out = self.classifier(out)
-        return out
+        return self.classifier(out)
+
 
 # ---------------------
 # Nama kelas penyakit
