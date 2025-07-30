@@ -36,7 +36,7 @@ def accuracy(outputs, labels):
     _, preds = torch.max(outputs, dim=1)
     return torch.tensor(torch.sum(preds == labels).item() / len(preds))
 
-class ResNet18Direct(ImageClassificationBase):
+class ResNet18(ImageClassificationBase):
     def __init__(self, num_classes=10):  # sesuai checkpoint
         super().__init__()
         self.conv1 = nn.Sequential(
