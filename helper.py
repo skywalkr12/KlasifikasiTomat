@@ -4,40 +4,32 @@ import torch.nn.functional as F
 import torchvision.transforms as transforms
 import streamlit as st
 
-# ---------------------
-# Class yang sama seperti di notebook training
-# ---------------------
+# --------- Base Class ---------
 class ImageClassificationBase(nn.Module):
     def training_step(self, batch):
         images, labels = batch 
-        out = self(images)                  
-        loss = F.cross_entropy(out, labels) 
-        return loss
+        out = self(images)
+        return F.cross_entropy(out, labels)
     
     def validation_step(self, batch):
         images, labels = batch 
-        out = self(images)                    
-        loss = F.cross_entropy(out, labels)   
-        acc = accuracy(out, labels)           
+        out = self(images) 
+        loss = F.cross_entropy(out, labels) 
+        acc = accuracy(out, labels)
         return {'val_loss': loss.detach(), 'val_acc': acc}
-        
-    def validation_epoch_end(self, outputs):
-        batch_losses = [x['val_loss'] for x in outputs]
-        epoch_loss = torch.stack(batch_losses).mean()   
-        batch_accs = [x['val_acc'] for x in outputs]
-        epoch_acc = torch.stack(batch_accs).mean()      
-        return {'val_loss': epoch_loss.item(), 'val_acc': epoch_acc.item()}
     
-    def epoch_end(self, epoch, result):
-        print("Epoch [{}], val_loss: {:.4f}, val_acc: {:.4f}".format(
-            epoch, result['val_loss'], result['val_acc']))
+    def validation_epoch_end(self, outputs):
+        losses = torch.stack([x['val_loss'] for x in outputs]).mean()
+        accs = torch.stack([x['val_acc'] for x in outputs]).mean()
+        return {'val_loss': losses.item(), 'val_acc': accs.item()}
 
 def accuracy(outputs, labels):
     _, preds = torch.max(outputs, dim=1)
     return torch.tensor(torch.sum(preds == labels).item() / len(preds))
 
-class ResNet18(ImageClassificationBase):
-    def __init__(self, num_classes=10):  # sesuai checkpoint
+# --------- Model (tanpa in_channels) ---------
+class ResNet18(nn.Module):
+    def __init__(self, num_diseases=10):   # default 10 kelas
         super().__init__()
         self.conv1 = nn.Sequential(
             nn.Conv2d(3, 64, kernel_size=3, padding=1),
@@ -90,7 +82,7 @@ class ResNet18(ImageClassificationBase):
             nn.MaxPool2d(4),
             nn.Flatten(),
             nn.Dropout(0.3),
-            nn.Linear(512, num_classes)
+            nn.Linear(512, num_diseases)
         )
 
     def forward(self, xb):
@@ -102,28 +94,22 @@ class ResNet18(ImageClassificationBase):
         out = self.res2(out) + out
         return self.classifier(out)
 
-
-# ---------------------
-# Nama kelas penyakit
-# ---------------------
+# --------- Nama Kelas ---------
 CLASS_NAMES = [
-    "Early Blight", "Late Blight", "Leaf Mold", "Septoria Leaf Spot", 
-    "Spider Mites", "Target Spot", "Yellow Leaf Curl Virus", 
-    "Mosaic Virus", "Healthy"
+    "Bacterial Spot", "Early Blight", "Late Blight", "Leaf Mold",
+    "Septoria Leaf Spot", "Spider Mites", "Target Spot",
+    "Yellow Leaf Curl Virus", "Mosaic Virus", "Healthy"
 ]
 
-# Transform gambar
 transform = transforms.Compose([
     transforms.Resize((256, 256)),
     transforms.ToTensor()
 ])
 
-# ---------------------
-# Load model pakai state_dict
-# ---------------------
+# --------- Loader ---------
 @st.cache_resource
 def load_model():
-    model = ResNet18(in_channels=3, num_diseases=len(CLASS_NAMES))
+    model = ResNet18(num_diseases=len(CLASS_NAMES))
     state_dict = torch.load("model/plant-disease-model.pth", map_location="cpu")
     model.load_state_dict(state_dict)
     model.eval()
