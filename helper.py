@@ -79,7 +79,7 @@ class ResNet18(nn.Module):
             )
         )
         self.classifier = nn.Sequential(
-            nn.AdaptiveAvgPool2d(1),
+            nn.AdaptiveAvgPool2d(4),
             nn.Flatten(),
             nn.Dropout(0.3),
             nn.Linear(512, num_diseases)
