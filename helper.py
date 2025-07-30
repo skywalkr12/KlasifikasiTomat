@@ -50,7 +50,7 @@ class SimpleResidualBlock(nn.Module):
         out += residual
         return F.relu(out)
 
-class TomatoDiseaseResNet(ImageClassificationBase):
+class ResNet18(ImageClassificationBase):
     def __init__(self, num_classes=9):
         super().__init__()
         self.conv1 = nn.Sequential(
@@ -111,22 +111,6 @@ transform = transforms.Compose([
 ])
 
 # --- Load model dengan state_dict ---
-@st.cache_resource
-def load_model():
-    model = TomatoDiseaseResNet(num_classes=len(CLASS_NAMES))
-    state_dict = torch.load("model/plant-disease-model.pth", map_location="cpu")
-    model.load_state_dict(state_dict)
-    model.eval()
-    return model
-
-def predict_image(model, image):
-    img = transform(image).unsqueeze(0)
-    with torch.no_grad():
-        outputs = model(img)
-        probs = torch.nn.functional.softmax(outputs[0], dim=0)
-        pred_idx = torch.argmax(probs).item()
-    return CLASS_NAMES[pred_idx], probs.numpy()
-
 @st.cache_resource
 def load_model():
     model = models.resnet18(weights=None, num_classes=9)   # atau sesuai arsitektur yang dipakai
