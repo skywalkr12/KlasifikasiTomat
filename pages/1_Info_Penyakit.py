@@ -2,6 +2,11 @@
 import streamlit as st
 
 diseases = {
+    "Bacterial Spot": {
+        "desc": "Disebabkan oleh bakteri *Xanthomonas campestris*. Bercak kecil coklat atau hitam pada daun dan buah, tepi bercak sering berwarna kuning.",
+        "handling": "Gunakan benih sehat, rotasi tanaman, semprot tembaga atau bakterisida sesuai anjuran.",
+        "source": "https://plantvillage.psu.edu/topics/tomato"
+    },
     "Early Blight": {
         "desc": "Disebabkan oleh jamur *Alternaria solani*. Gejalanya bercak coklat dengan lingkaran konsentris pada daun tua.",
         "handling": "Gunakan fungisida berbahan aktif klorotalonil atau mankozeb. Buang daun terinfeksi & rotasi tanaman.",

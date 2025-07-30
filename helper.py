@@ -110,7 +110,7 @@ transform = transforms.Compose([
 @st.cache_resource
 def load_model():
     model = ResNet18(num_diseases=len(CLASS_NAMES))
-    state_dict = torch.load("model/plant-disease-model.pth", map_location="cpu")
+    state_dict = torch.load("model/resnet_97_56.pt", map_location="cpu")
     model.load_state_dict(state_dict)
     model.eval()
     return model
