@@ -1,11 +1,12 @@
-import torchvision.models as models
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms as transforms
 import streamlit as st
 
-# --- Class Model ---
+# ---------------------
+# Class yang sama seperti di notebook training
+# ---------------------
 class ImageClassificationBase(nn.Module):
     def training_step(self, batch):
         images, labels = batch 
@@ -35,86 +36,70 @@ def accuracy(outputs, labels):
     _, preds = torch.max(outputs, dim=1)
     return torch.tensor(torch.sum(preds == labels).item() / len(preds))
 
-class SimpleResidualBlock(nn.Module):
-    def __init__(self, in_channels, out_channels):
+# Block konvolusi dasar
+class ConvBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, pool=False):
         super().__init__()
-        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
-        self.bn1 = nn.BatchNorm2d(out_channels)
-        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
-        self.bn2 = nn.BatchNorm2d(out_channels)
+        layers = [
+            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True)
+        ]
+        if pool: layers.append(nn.MaxPool2d(2))
+        self.conv = nn.Sequential(*layers)
 
     def forward(self, xb):
-        residual = xb
-        out = F.relu(self.bn1(self.conv1(xb)))
-        out = self.bn2(self.conv2(out))
-        out += residual
-        return F.relu(out)
+        return self.conv(xb)
 
+# Model utama sesuai notebook
 class ResNet18(ImageClassificationBase):
-    def __init__(self, num_classes=9):
+    def __init__(self, in_channels, num_diseases):
         super().__init__()
-        self.conv1 = nn.Sequential(
-            nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(32),
-            nn.ReLU()
-        )
-        self.conv2 = nn.Sequential(
-            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU()
-        )
-        self.res1 = nn.Sequential(
-            SimpleResidualBlock(64, 64),
-            SimpleResidualBlock(64, 64)
-        )
-        self.conv3 = nn.Sequential(
-            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(128),
-            nn.ReLU()
-        )
-        self.res2 = nn.Sequential(
-            SimpleResidualBlock(128, 128),
-            SimpleResidualBlock(128, 128)
-        )
-        self.conv4 = nn.Sequential(
-            nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(256),
-            nn.ReLU()
-        )
+        self.conv1 = ConvBlock(in_channels, 64)
+        self.conv2 = ConvBlock(64, 128, pool=True)
+        self.res1 = nn.Sequential(ConvBlock(128, 128), ConvBlock(128, 128))
+        self.conv3 = ConvBlock(128, 256, pool=True)
+        self.conv4 = ConvBlock(256, 512, pool=True)
+        self.res2 = nn.Sequential(ConvBlock(512, 512), ConvBlock(512, 512))
         self.classifier = nn.Sequential(
-            nn.AdaptiveAvgPool2d((1, 1)),
+            nn.MaxPool2d(4),
             nn.Flatten(),
-            nn.Linear(256, num_classes)
+            nn.Dropout(0.3),
+            nn.Linear(512, num_diseases)
         )
 
     def forward(self, xb):
         out = self.conv1(xb)
         out = self.conv2(out)
-        out = self.res1(out)
+        out = self.res1(out) + out
         out = self.conv3(out)
-        out = self.res2(out)
         out = self.conv4(out)
-        return self.classifier(out)
+        out = self.res2(out) + out
+        out = self.classifier(out)
+        return out
 
-
-# --- Kelas Nama ---
+# ---------------------
+# Nama kelas penyakit
+# ---------------------
 CLASS_NAMES = [
     "Early Blight", "Late Blight", "Leaf Mold", "Septoria Leaf Spot", 
     "Spider Mites", "Target Spot", "Yellow Leaf Curl Virus", 
     "Mosaic Virus", "Healthy"
 ]
 
-# --- Transformasi ---
+# Transform gambar
 transform = transforms.Compose([
     transforms.Resize((256, 256)),
     transforms.ToTensor()
 ])
 
-# --- Load model dengan state_dict ---
+# ---------------------
+# Load model pakai state_dict
+# ---------------------
 @st.cache_resource
 def load_model():
-    model = models.resnet18(weights=None, num_classes=9)   # atau sesuai arsitektur yang dipakai
-    state_dict = torch.load("model/resnet_97_56.pt", map_location="cpu")
+    model = ResNet18(in_channels=3, num_diseases=len(CLASS_NAMES))
+    state_dict = torch.load("model/plant-disease-model.pth", map_location="cpu")
     model.load_state_dict(state_dict)
     model.eval()
     return model
