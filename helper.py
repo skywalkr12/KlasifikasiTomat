@@ -95,11 +95,16 @@ class ResNet18(nn.Module):
         return self.classifier(out)
 
 # --------- Nama Kelas ---------
-CLASS_NAMES = [
-    "Bacterial Spot", "Early Blight", "Late Blight", "Leaf Mold",
-    "Septoria Leaf Spot", "Spider Mites", "Target Spot",
-    "Yellow Leaf Curl Virus", "Mosaic Virus", "Healthy"
-]
+CLASS_NAMES = ['Tomato_Bacterial_spot',
+ 'Tomato_Early_blight',
+ 'Tomato_Late_blight',
+ 'Tomato_Leaf_Mold',
+ 'Tomato_Septoria_leaf_spot',
+ 'Tomato_Spider_mites_Two_spotted_spider_mite',
+ 'Tomato__Target_Spot',
+ 'Tomato__Tomato_YellowLeaf__Curl_Virus',
+ 'Tomato__Tomato_mosaic_virus',
+ 'Tomato_healthy']
 
 transform = transforms.Compose([
     transforms.Resize((256, 256)),
