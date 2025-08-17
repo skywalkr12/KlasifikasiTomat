@@ -38,7 +38,7 @@ def ConvBlock(in_channels, out_channels, pool=False):
 
 
 # resnet architecture
-class ResNet9(ImageClassificationBase):
+class ResNet18(ImageClassificationBase):
     def __init__(self, in_channels, num_diseases):
         super().__init__()
 
