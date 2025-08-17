@@ -27,72 +27,43 @@ def accuracy(outputs, labels):
     _, preds = torch.max(outputs, dim=1)
     return torch.tensor(torch.sum(preds == labels).item() / len(preds))
 
-# --------- Model (tanpa in_channels) ---------
-class ResNet18(nn.Module):
-    def __init__(self, num_diseases=10):   # default 10 kelas
-        super().__init__()
-        self.conv1 = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=3, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(inplace=True)
-        )
-        self.conv2 = nn.Sequential(
-            nn.Conv2d(64, 128, kernel_size=3, padding=1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2)
-        )
-        self.res1 = nn.Sequential(
-            nn.Sequential(
-                nn.Conv2d(128, 128, kernel_size=3, padding=1),
-                nn.BatchNorm2d(128),
-                nn.ReLU(inplace=True)
-            ),
-            nn.Sequential(
-                nn.Conv2d(128, 128, kernel_size=3, padding=1),
-                nn.BatchNorm2d(128),
-                nn.ReLU(inplace=True)
-            )
-        )
-        self.conv3 = nn.Sequential(
-            nn.Conv2d(128, 256, kernel_size=3, padding=1),
-            nn.BatchNorm2d(256),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2)
-        )
-        self.conv4 = nn.Sequential(
-            nn.Conv2d(256, 512, kernel_size=3, padding=1),
-            nn.BatchNorm2d(512),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2)
-        )
-        self.res2 = nn.Sequential(
-            nn.Sequential(
-                nn.Conv2d(512, 512, kernel_size=3, padding=1),
-                nn.BatchNorm2d(512),
-                nn.ReLU(inplace=True)
-            ),
-            nn.Sequential(
-                nn.Conv2d(512, 512, kernel_size=3, padding=1),
-                nn.BatchNorm2d(512),
-                nn.ReLU(inplace=True)
-            )
-        )
-        self.classifier = nn.Sequential(
-            nn.AdaptiveMaxPool2d(1),  # GANTI dari MaxPool2d(4)
-            nn.Flatten(),
-            nn.Dropout(0.3),
-            nn.Linear(512, num_diseases)
-        )
+# convolution block with BatchNormalization
+def ConvBlock(in_channels, out_channels, pool=False):
+    layers = [nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
+             nn.BatchNorm2d(out_channels),
+             nn.ReLU(inplace=True)]
+    if pool:
+        layers.append(nn.MaxPool2d(4))
+    return nn.Sequential(*layers)
 
-    def forward(self, xb):
+
+# resnet architecture
+class ResNet9(ImageClassificationBase):
+    def __init__(self, in_channels, num_diseases):
+        super().__init__()
+
+        self.conv1 = ConvBlock(in_channels, 64)
+        self.conv2 = ConvBlock(64, 128, pool=True) # out_dim : 128 x 64 x 64
+        self.res1 = nn.Sequential(ConvBlock(128, 128), ConvBlock(128, 128))
+
+        self.conv3 = ConvBlock(128, 256, pool=True) # out_dim : 256 x 16 x 16
+        self.conv4 = ConvBlock(256, 512, pool=True) # out_dim : 512 x 4 x 44
+        self.res2 = nn.Sequential(ConvBlock(512, 512), ConvBlock(512, 512))
+
+        self.classifier = nn.Sequential(nn.AdaptiveMaxPool2d(1),  # GANTI dari MaxPool2d(4),
+                                       nn.Flatten(),
+                                       nn.Dropout(0.3),
+                                       nn.Linear(512, num_diseases))
+
+    def forward(self, xb): # xb is the loaded batch
         out = self.conv1(xb)
         out = self.conv2(out)
         out = self.res1(out) + out
         out = self.conv3(out)
         out = self.conv4(out)
         out = self.res2(out) + out
-        return self.classifier(out)
+        out = self.classifier(out)
+        return out
 
 # --------- Nama Kelas ---------
 CLASS_NAMES = ['Tomato_Bacterial_spot',
