@@ -79,7 +79,7 @@ class ResNet18(nn.Module):
             )
         )
         self.classifier = nn.Sequential(
-            nn.MaxPool2d(4),
+            nn.AdaptiveMaxPool2d(1),  # GANTI dari MaxPool2d(4)
             nn.Flatten(),
             nn.Dropout(0.3),
             nn.Linear(512, num_diseases)
@@ -115,8 +115,11 @@ transform = transforms.Compose([
 @st.cache_resource
 def load_model():
     model = ResNet18(num_diseases=len(CLASS_NAMES))
-    state_dict = torch.load("model/resnet_97_56.pt", map_location="cpu")
-    model.load_state_dict(state_dict)
+    sd = torch.load("model/resnet_97_56.pt", map_location="cpu")
+    if isinstance(sd, dict) and "model_state_dict" in sd:
+        sd = sd["model_state_dict"]
+    sd = { (k.replace("module.","") if k.startswith("module.") else k): v for k,v in sd.items() }
+    model.load_state_dict(sd, strict=True)  # strict=True agar ketahuan kalau layer beda
     model.eval()
     return model
 
