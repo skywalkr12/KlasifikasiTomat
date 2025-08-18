@@ -50,6 +50,7 @@ if uploaded_file:
         alpha=alpha,
         topk=topk,
         target_layer_name=target_layer_name,
+        include_brown=True,
         mask_bg=mask_bg,
         blend_with_res2=blend_with_res2
     )
