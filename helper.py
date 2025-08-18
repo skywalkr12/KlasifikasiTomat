@@ -1,4 +1,11 @@
-# helper.py (No-inplace ReLU + safe BN hooks + cache-bust)
+# helper.py
+# — Grad-CAM untuk ResNet9-variant tanpa retrain —
+# Perbaikan penting:
+# 1) Semua ReLU non-inplace (aman autograd)
+# 2) Hook Grad-CAM ke BatchNorm (pre-pool) agar terhindar dari konflik in-place
+# 3) Blend CAM beda resolusi (mis. 16x16 vs 4x4) dengan upsample dulu
+# 4) Opsi mask daun (HSV) agar background tidak mendominasi
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -7,7 +14,7 @@ import numpy as np
 from PIL import Image
 from matplotlib import cm
 
-# Streamlit opsional
+# Streamlit opsional (agar file ini bisa diimpor di luar Streamlit juga)
 try:
     import streamlit as st
 except ImportError:
@@ -17,7 +24,7 @@ except ImportError:
             return deco
     st = _Dummy()
 
-# ========= Utils =========
+# ========= Util umum =========
 def accuracy(outputs, labels):
     _, preds = torch.max(outputs, dim=1)
     return torch.tensor(torch.sum(preds == labels).item() / len(preds))
@@ -26,9 +33,9 @@ class SimpleResidualBlock(nn.Module):
     def __init__(self):
         super().__init__()
         self.conv1 = nn.Conv2d(3, 3, 3, 1, 1)
-        self.relu1 = nn.ReLU(inplace=False)
+        self.relu1 = nn.ReLU(inplace=False)  # non-inplace
         self.conv2 = nn.Conv2d(3, 3, 3, 1, 1)
-        self.relu2 = nn.ReLU(inplace=False)
+        self.relu2 = nn.ReLU(inplace=False)  # non-inplace
     def forward(self, x):
         out = self.relu1(self.conv1(x))
         out = self.conv2(out)
@@ -54,22 +61,22 @@ def ConvBlock(in_channels, out_channels, pool=False):
     layers = [
         nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
         nn.BatchNorm2d(out_channels),
-        nn.ReLU(inplace=False)
+        nn.ReLU(inplace=False)  # non-inplace
     ]
     if pool:
-        layers.append(nn.MaxPool2d(4))
+        layers.append(nn.MaxPool2d(4))  # turunkan resolusi agresif sesuai arsitektur kamu
     return nn.Sequential(*layers)
 
-# ========= Model (ResNet9-variant) =========
+# ========= Model (ResNet9-variant kamu; nama kelas tetap ResNet18 agar kompatibel) =========
 class ResNet18(ImageClassificationBase):
     def __init__(self, num_diseases=10, in_channels=3):
         super().__init__()
-        self.conv1 = ConvBlock(in_channels, 64)               # 256 -> 256
-        self.conv2 = ConvBlock(64, 128, pool=True)            # 256 -> 64
+        self.conv1 = ConvBlock(in_channels, 64)               # 256x256
+        self.conv2 = ConvBlock(64, 128, pool=True)            # 256->64 (pool)
         self.res1  = nn.Sequential(ConvBlock(128, 128),
                                    ConvBlock(128, 128))
-        self.conv3 = ConvBlock(128, 256, pool=True)           # 64 -> 16
-        self.conv4 = ConvBlock(256, 512, pool=True)           # 16 -> 4
+        self.conv3 = ConvBlock(128, 256, pool=True)           # 64->16
+        self.conv4 = ConvBlock(256, 512, pool=True)           # 16->4
         self.res2  = nn.Sequential(ConvBlock(512, 512),
                                    ConvBlock(512, 512))
         self.classifier = nn.Sequential(
@@ -87,7 +94,7 @@ class ResNet18(ImageClassificationBase):
         out = self.res2(out) + out
         return self.classifier(out)
 
-# ========= Kelas =========
+# ========= Daftar kelas =========
 CLASS_NAMES = [
  'Tomato_Bacterial_spot',
  'Tomato_Early_blight',
@@ -101,62 +108,62 @@ CLASS_NAMES = [
  'Tomato_healthy'
 ]
 
-# Penting: samakan dengan training!
+# ========= Transform (samakan dengan training!) =========
 transform = transforms.Compose([
     transforms.Resize((256, 256)),
     transforms.ToTensor()
-    # Jika training pakai Normalize, aktifkan juga di sini.
-    # transforms.Normalize(mean=[...], std=[...]),
+    # Jika saat training kamu pakai Normalize, aktifkan lagi di sini:
+    # transforms.Normalize(mean=[0.485,0.456,0.406], std=[0.229,0.224,0.225]),
 ])
 
-# ========= Patch helper =========
+# ========= Patch util =========
 def _disable_inplace_relu(model: nn.Module):
-    """Setiap nn.ReLU di model dipaksa inplace=False (tambahan safety post-load)."""
+    """Pastikan semua nn.ReLU di model tidak in-place (safety post-load)."""
     for m in model.modules():
         if isinstance(m, nn.ReLU):
             m.inplace = False
     return model
 
-# ========= Loader (dengan cache-bust arg) =========
+# ========= Loader (gunakan cache_bust bila perlu memaksa reload) =========
 @st.cache_resource
-def load_model(cache_bust: str = "noinplace-v3"):
+def load_model(cache_bust: str = "noinplace-v4"):
     model = ResNet18(num_diseases=len(CLASS_NAMES), in_channels=3)
     sd = torch.load("model/resnet_97_56.pt", map_location="cpu")
     if isinstance(sd, dict) and "model_state_dict" in sd:
         sd = sd["model_state_dict"]
     sd = { (k.replace("module.","") if k.startswith("module.") else k): v for k,v in sd.items() }
     model.load_state_dict(sd, strict=True)
-    _disable_inplace_relu(model)  # <<— patch setelah load
+    _disable_inplace_relu(model)  # patch setelah load
     model.eval()
     return model
 
-# ========= Prediksi =========
+# ========= Prediksi biasa =========
 @torch.no_grad()
 def predict_image(model, image):
-    img = transform(image).unsqueeze(0)
-    outputs = model(img)
-    probs = torch.softmax(outputs[0], dim=0)
-    pred_idx = torch.argmax(probs).item()
-    return CLASS_NAMES[pred_idx], probs.numpy()
+    x = transform(image).unsqueeze(0)
+    out = model(x)
+    probs = torch.softmax(out[0], dim=0)
+    idx = torch.argmax(probs).item()
+    return CLASS_NAMES[idx], probs.numpy()
 
-# ========= Grad-CAM =========
+# ========= Util Grad-CAM =========
 def _normalize_cam(cam: torch.Tensor):
     cam = torch.relu(cam)
-    cam_min, cam_max = cam.min(), cam.max()
-    if (cam_max - cam_min) > 1e-8:
-        cam = (cam - cam_min) / (cam_max - cam_min)
+    mn, mx = cam.min(), cam.max()
+    if (mx - mn) > 1e-8:
+        cam = (cam - mn) / (mx - mn)
     else:
         cam = torch.zeros_like(cam)
     return cam
 
 def _upsample_cam(cam: torch.Tensor, size_hw: tuple[int,int]) -> torch.Tensor:
+    # cam: (Hc,Wc) -> (H,W)
     cam = cam[None, None, ...]
     cam = F.interpolate(cam, size=size_hw, mode="bilinear", align_corners=False)
     return cam[0,0]
 
 def _overlay(pil_img: Image.Image, cam_hw01: np.ndarray, alpha: float = 0.45) -> Image.Image:
     base = np.asarray(pil_img.convert("RGB")).astype(np.float32) / 255.0
-    H, W = base.shape[:2]
     cam_hw01 = np.clip(cam_hw01, 0.0, 1.0)
     heat = cm.get_cmap("jet")(cam_hw01)[..., :3]
     out = (1 - alpha) * base + alpha * heat
@@ -164,15 +171,15 @@ def _overlay(pil_img: Image.Image, cam_hw01: np.ndarray, alpha: float = 0.45) ->
     return Image.fromarray((out * 255).astype(np.uint8))
 
 def _simple_leaf_mask(pil_img: Image.Image) -> np.ndarray:
+    """Mask daun sederhana di HSV (0..255) untuk menekan background."""
     hsv = np.asarray(pil_img.convert("HSV")).astype(np.int32)
     H, S, V = hsv[...,0], hsv[...,1], hsv[...,2]
     green  = (H >= 60) & (H <= 130) & (S >= 60) & (V >= 40)
     yellow = (H >= 35) & (H <= 59)  & (S >= 60) & (V >= 50)
     mask = (green | yellow).astype(np.float32)
-    # box blur 3x3
+    # box blur 3x3 sederhana
     if mask.sum() > 0:
-        k = 3
-        pad = k // 2
+        k = 3; pad = k // 2
         padded = np.pad(mask, ((pad,pad),(pad,pad)), mode="edge")
         smoothed = np.zeros_like(mask)
         for i in range(mask.shape[0]):
@@ -181,13 +188,19 @@ def _simple_leaf_mask(pil_img: Image.Image) -> np.ndarray:
         mask = np.clip(smoothed, 0, 1)
     return mask
 
+def _resize_like(cam_src: torch.Tensor, cam_ref: torch.Tensor) -> torch.Tensor:
+    if cam_src.shape == cam_ref.shape:
+        return cam_src
+    return _upsample_cam(cam_src, (cam_ref.shape[0], cam_ref.shape[1]))
+
+# ========= Pilihan layer target Grad-CAM =========
 def get_target_layer(model: nn.Module, name: str):
     """
-    Hook ke BN (bukan ReLU) untuk aman dari in-place:
-      - "conv4_prepool" -> model.conv4[1] (BN), resolusi ~16x16
-      - "conv3_prepool" -> model.conv3[1] (BN), resolusi ~16x16
-      - "conv2_prepool" -> model.conv2[1] (BN), resolusi ~64x64
-      - "res2"          -> output block (4x4, sangat semantik)
+    Hook ke BatchNorm (pre-pool) agar aman dari isu in-place:
+      - "conv4_prepool" -> model.conv4[1] (BN), ~16x16
+      - "conv3_prepool" -> model.conv3[1] (BN), ~64x64
+      - "conv2_prepool" -> model.conv2[1] (BN), ~256x256 (berat)
+      - "res2"          -> output block, 4x4 (sangat semantik, kasar)
     """
     if name == "res2":
         return model.res2
@@ -212,7 +225,8 @@ class GradCAM:
             self.h2 = target_layer.register_backward_hook(self._bhook)
 
     def _fhook(self, module, inp, out):
-        self._A = out.detach().clone()  # aman dari view+inplace
+        # detach+clone agar aman (tidak jadi view yang diubah in-place)
+        self._A = out.detach().clone()
 
     def _bhook(self, module, gin, gout):
         self._G = gout[0].detach().clone()
@@ -238,6 +252,7 @@ class GradCAM:
             cam = _normalize_cam(cam)
         return cam, class_idx, probs.detach().cpu().numpy()
 
+# ========= API utama untuk dipakai di Streamlit =========
 def gradcam_on_pil(
     model: nn.Module,
     pil_img: Image.Image,
@@ -249,35 +264,36 @@ def gradcam_on_pil(
 ):
     x = transform(pil_img).unsqueeze(0)
 
-    # CAM utama
+    # CAM utama (pre-pool BN)
     tl = get_target_layer(model, target_layer_name)
     engine = GradCAM(model, tl)
     try:
-        cam, used_idx, probs = engine.compute(x, class_idx=class_idx)
+        cam, used_idx, probs = engine.compute(x, class_idx=class_idx)   # (Hc,Wc)
     finally:
         engine.remove()
 
-    # Opsional: blend dengan res2
+    # Opsional: blend dengan res2 (4x4), upsample dulu agar sama ukuran
     if blend_with_res2 and target_layer_name != "res2":
         tl2 = get_target_layer(model, "res2")
         engine2 = GradCAM(model, tl2)
         try:
-            cam2, _, _ = engine2.compute(x, class_idx=used_idx)
-            if cam2.shape != cam.shape:
-                cam2 = _upsample_cam(cam2, (cam.shape[0], cam.shape[1]))  # naikkan 4x4 → 16x16 (atau 64x64)
-            cam = 0.6 * cam + 0.4 * cam2
-            cam = _normalize_cam(cam)  # re-normalisasi setelah gabung
-            
-    # Upsample ke ukuran input
+            cam2, _, _ = engine2.compute(x, class_idx=used_idx)         # (4,4)
+        finally:
+            engine2.remove()
+        cam2 = _resize_like(cam2, cam)                                  # samakan ukuran
+        cam  = _normalize_cam(0.6 * cam + 0.4 * cam2)
+
+    # Upsample CAM ke ukuran gambar
     H, W = pil_img.size[1], pil_img.size[0]
-    cam_up = _upsample_cam(cam, (H, W))
+    cam_up = _upsample_cam(cam, (H, W))                                 # torch Tensor (H,W)
 
-    # Mask background
+    # Mask background (opsional)
     if mask_bg:
-        m = _simple_leaf_mask(pil_img)
-        cam_up = cam_up * torch.tensor(m, dtype=cam_up.dtype)
+        m = _simple_leaf_mask(pil_img)                                   # numpy 0..1
+        m_t = torch.tensor(m, dtype=cam_up.dtype, device=cam_up.device)
+        cam_up = cam_up * m_t
 
-    cam_up = _normalize_cam(cam_up).cpu().numpy()
+    cam_up = _normalize_cam(cam_up).cpu().numpy()                        # ke numpy 0..1
     overlay = _overlay(pil_img, cam_up, alpha=alpha)
     pred_label = CLASS_NAMES[used_idx] if 0 <= used_idx < len(CLASS_NAMES) else str(used_idx)
     return overlay, cam_up, pred_label, used_idx, probs
@@ -291,7 +307,7 @@ def show_prediction_and_cam(
     mask_bg: bool = False,
     blend_with_res2: bool = False,
 ):
-    # Prediksi
+    # Prediksi (no_grad aman)
     with torch.no_grad():
         x = transform(pil_img).unsqueeze(0)
         out = model(x)
@@ -299,7 +315,7 @@ def show_prediction_and_cam(
         used_idx = int(np.argmax(probs_all))
     pred_label = CLASS_NAMES[used_idx]
 
-    # Grad-CAM
+    # Grad-CAM (enable grad di fungsi internal)
     overlay, cam, _, _, _ = gradcam_on_pil(
         model, pil_img,
         target_layer_name=target_layer_name,
@@ -309,7 +325,7 @@ def show_prediction_and_cam(
         blend_with_res2=blend_with_res2
     )
 
-    # Tampilkan (jika di Streamlit)
+    # Render ke Streamlit bila tersedia
     try:
         col1, col2 = st.columns([1,1])
         with col1:
