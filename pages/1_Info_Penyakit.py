@@ -68,9 +68,9 @@ for name, data in diseases.items():
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; font-size:14px;'>
-Dibuat oleh <b>Farhan</b><br>
-🔗 <a href="https://linkedin.com/" target="_blank">LinkedIn</a> | 
-<a href="https://instagram.com/" target="_blank">Instagram</a> | 
-<a href="https://facebook.com/" target="_blank">Facebook</a>
+Dibuat oleh <b>Muhammad Sahrul Farhan | 51421076</b><br>
+🔗 <a href="https://www.linkedin.com/in/muhammad-sahrul-farhan/" target="blank_">LinkedIn</a> | 
+<a href="https://www.instagram.com/eitcheien/" target="blank_">Instagram</a> | 
+<a href="https://www.facebook.com/skywalkr12" target="blank_">Facebook</a>
 </div>
 """, unsafe_allow_html=True)
