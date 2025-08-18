@@ -20,9 +20,9 @@ st.image("images/tomato_banner.jpg", use_container_width=True)
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; font-size:14px;'>
-Dibuat oleh <b>Farhan</b><br>
-🔗 <a href="https://id.linkedin.com/in/muhammad-sahrul-farhan/" target="_blank">LinkedIn</a> | 
-<a href="https://instagram.com/eitcheien/" target="_blank">Instagram</a> | 
-<a href="https://facebook.com/skywalkr12" target="_blank">Facebook</a>
+Dibuat oleh <b>Muhammad Sahrul Farhan | 51421076</b><br>
+🔗 <a href="https://www.linkedin.com/in/muhammad-sahrul-farhan/" target="blank_">LinkedIn</a> | 
+<a href="https://www.instagram.com/eitcheien/" target="blank_">Instagram</a> | 
+<a href="https://www.facebook.com/skywalkr12" target="blank_">Facebook</a>
 </div>
 """, unsafe_allow_html=True)
