@@ -65,6 +65,10 @@ for name, data in diseases.items():
         st.markdown(f"[Sumber]({data['source']})")
     st.markdown("---")
 
+st.write("""
+Catatan: Ini adalah alat diagnosis dengan bantuan Kecerdasan Buatan dan sebaiknya digunakan hanya sebagai panduan. Untuk diagnosis yang konklusif, konsultasikan dengan ahli patologi tanaman profesional.
+""")
+
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; font-size:14px;'>
