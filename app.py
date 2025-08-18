@@ -19,7 +19,10 @@ st.image("images/tomato_banner.jpg", use_container_width=True)
 # Footer
 st.markdown("---")
 st.markdown("""
+
 <div style='text-align: center; font-size:14px;'>
+Catatan: Ini adalah alat diagnosis berbantuan AI dan sebaiknya digunakan hanya sebagai panduan. Untuk diagnosis yang konklusif, konsultasikan dengan ahli patologi tanaman profesional.
+
 Dibuat oleh <b>Muhammad Sahrul Farhan | 51421076</b><br>
 🔗 <a href="https://www.linkedin.com/in/muhammad-sahrul-farhan/" target="blank_">LinkedIn</a> | 
 <a href="https://www.instagram.com/eitcheien/" target="blank_">Instagram</a> | 
