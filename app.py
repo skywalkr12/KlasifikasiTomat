@@ -17,7 +17,7 @@ Gunakan menu di sidebar untuk membaca informasi penyakit dan memprediksi penyaki
 st.image("images/tomato_banner.jpg", use_container_width=True)
 
 st.write("""
-Catatan: Ini adalah alat diagnosis berbantuan AI dan sebaiknya digunakan hanya sebagai panduan. Untuk diagnosis yang konklusif, konsultasikan dengan ahli patologi tanaman profesional.
+Catatan: Ini adalah alat diagnosis dengan bantuan Kecerdasan Buatan dan sebaiknya digunakan hanya sebagai panduan. Untuk diagnosis yang konklusif, konsultasikan dengan ahli patologi tanaman profesional.
 """)
 
 # Footer
