@@ -11,10 +11,7 @@ st.markdown("<h1 style='color:#b22222;'>🍅 Aplikasi Deteksi Penyakit Tomat</h1
 
 st.write("""
 Selamat datang di aplikasi deteksi penyakit tomat berbasis Deep Learning.
-Gunakan menu di sidebar untuk membaca informasi penyakit dan memprediksi gambar daun tomat.
-
-Catatan: Ini adalah alat diagnosis dengan bantuan Kecerdasan Buatan dan sebaiknya digunakan hanya sebagai panduan.
-Untuk diagnosis yang konklusif, konsultasikan dengan ahli patologi tanaman profesional.
+Gunakan menu di sidebar untuk membaca informasi penyakit dan memprediksi penyakit tomat.
 """)
 
 st.image("images/tomato_banner.jpg", use_container_width=True)
