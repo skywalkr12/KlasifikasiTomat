@@ -72,9 +72,10 @@ Catatan: Ini adalah alat diagnosis dengan bantuan Kecerdasan Buatan dan sebaikny
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; font-size:14px;'>
-Dibuat oleh <b>Muhammad Sahrul Farhan | 51421076</b><br>
+<b>© - 2025 | Muhammad Sahrul Farhan | 51421076</b><br>
 🔗 <a href="https://www.linkedin.com/in/muhammad-sahrul-farhan/" target="blank_">LinkedIn</a> | 
 <a href="https://www.instagram.com/eitcheien/" target="blank_">Instagram</a> | 
 <a href="https://www.facebook.com/skywalkr12" target="blank_">Facebook</a>
 </div>
 """, unsafe_allow_html=True)
+
