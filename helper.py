@@ -263,10 +263,11 @@ def gradcam_on_pil(
         engine2 = GradCAM(model, tl2)
         try:
             cam2, _, _ = engine2.compute(x, class_idx=used_idx)
-        finally:
-            engine2.remove()
-        cam = 0.6 * cam + 0.4 * cam2
-
+            if cam2.shape != cam.shape:
+                cam2 = _upsample_cam(cam2, (cam.shape[0], cam.shape[1]))  # naikkan 4x4 → 16x16 (atau 64x64)
+            cam = 0.6 * cam + 0.4 * cam2
+            cam = _normalize_cam(cam)  # re-normalisasi setelah gabung
+            
     # Upsample ke ukuran input
     H, W = pil_img.size[1], pil_img.size[0]
     cam_up = _upsample_cam(cam, (H, W))
