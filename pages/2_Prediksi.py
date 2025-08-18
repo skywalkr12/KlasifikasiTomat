@@ -107,7 +107,7 @@ if st.session_state["history"]:
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; font-size:14px;'>
-Dibuat oleh <b>Farhan</b><br>
+Dibuat oleh <b>Muhammad Sahrul Farhan | 51421076</b><br>
 🔗 <a href="https://linkedin.com/" target="_blank">LinkedIn</a> | 
 <a href="https://instagram.com/" target="_blank">Instagram</a> | 
 <a href="https://facebook.com/" target="_blank">Facebook</a>
