@@ -6,104 +6,105 @@ import numpy as np
 import pandas as pd
 from datetime import datetime
 
-# Ambil API dari helper.py (pastikan helper.py yang terbaru)
 from helper import (
     load_model,
-    show_prediction_and_cam,  # menampilkan input, prediksi, top-k, dan overlay Grad-CAM
-    gradcam_on_pil,           # untuk Grad-CAM kelas terpilih manual
+    show_prediction_and_cam,
+    gradcam_on_pil,
     CLASS_NAMES
 )
 
-# ====== Setup Halaman ======
 st.set_page_config(page_title="Prediksi Penyakit Tomat + Grad-CAM", layout="wide")
-st.title("🔍 Prediksi Penyakit Tomat + Grad-CAM")
+st.title("🔍 Prediksi Penyakit Tomat + Grad-CAM (tajam)")
 
 if "history" not in st.session_state:
     st.session_state["history"] = []
 
-# ====== Sidebar Controls ======
+# ----- Sidebar -----
 with st.sidebar:
-    st.header("Pengaturan")
+    st.header("Pengaturan Visualisasi")
+    target_layer_name = st.selectbox(
+        "Layer target Grad-CAM",
+        options=["conv4_prepool", "conv3_prepool", "conv2_prepool", "res2"],
+        index=0,  # default: conv4_prepool (16x16)
+        help="Pilih layer sebelum pooling untuk peta lebih tajam."
+    )
     alpha = st.slider("Transparansi Heatmap (α)", 0.0, 1.0, 0.45, 0.05)
     topk  = st.slider("Jumlah alternatif (Top-k)", 1, min(5, len(CLASS_NAMES)), 3, 1)
-    show_full_chart = st.checkbox("Tampilkan chart probabilitas lengkap", True)
-    sort_desc       = st.checkbox("Urutkan chart dari probabilitas tertinggi", True)
+    mask_bg = st.checkbox("Mask background (fokus ke daun)", True)
+    blend_with_res2 = st.checkbox("Blend dengan res2 (stabilkan semantik)", True)
     st.markdown("---")
-    st.caption("Grad-CAM: menyorot area citra yang berkontribusi pada prediksi model.")
+    show_full_chart = st.checkbox("Tampilkan chart probabilitas lengkap", True)
+    sort_desc = st.checkbox("Urutkan chart menurun", True)
 
-# ====== Model (cached oleh Streamlit) ======
+# ----- Model -----
 model = load_model()
 
-# ====== Uploader ======
+# ----- Uploader -----
 uploaded_file = st.file_uploader("Upload gambar daun tomat", type=["jpg", "jpeg", "png"])
 
 if uploaded_file:
     image = Image.open(uploaded_file).convert("RGB")
 
-    # Tampilkan prediksi + Grad-CAM + Top-k langsung (helper akan render UI dalam 2 kolom)
+    # Tampilkan prediksi + Grad-CAM (dengan opsi baru)
     overlay, cam, used_idx, probs_all = show_prediction_and_cam(
-        model, image, alpha=alpha, topk=topk
+        model, image,
+        alpha=alpha,
+        topk=topk,
+        target_layer_name=target_layer_name,
+        mask_bg=mask_bg,
+        blend_with_res2=blend_with_res2
     )
 
-    # ====== Chart Probabilitas Lengkap ======
+    # Chart probabilitas lengkap
     if show_full_chart:
-        st.subheader("📊 Probabilitas per Kelas (Lengkap)")
+        st.subheader("📊 Probabilitas per Kelas")
         probs = np.array(probs_all)
-        class_names = CLASS_NAMES
-
-        # Indeks kelas untuk di-plot
-        idxs = np.arange(len(class_names))
-        if sort_desc:
-            idxs = np.argsort(-probs)
-
+        idxs = np.argsort(-probs) if sort_desc else np.arange(len(CLASS_NAMES))
         fig, ax = plt.subplots()
-        ax.barh([class_names[i] for i in idxs], probs[idxs], height=0.6)
-        ax.invert_yaxis()  # kelas dengan probabilitas terbesar di atas
+        ax.barh([CLASS_NAMES[i] for i in idxs], probs[idxs], height=0.6)
+        ax.invert_yaxis()
         ax.set_xlim(0, 1)
         ax.set_xlabel("Probabilitas")
         ax.set_ylabel("Kelas")
         st.pyplot(fig)
 
-    # ====== Lihat Grad-CAM untuk Kelas Lain (opsional) ======
-    with st.expander("🎯 Lihat Grad-CAM untuk kelas tertentu (opsional)"):
-        target_label = st.selectbox(
-            "Pilih kelas untuk divisualisasikan",
-            options=CLASS_NAMES,
-            index=used_idx
-        )
+    # Grad-CAM untuk kelas lain (opsional)
+    with st.expander("🎯 Lihat Grad-CAM untuk kelas tertentu"):
+        target_label = st.selectbox("Pilih kelas", CLASS_NAMES, index=used_idx)
         target_idx = CLASS_NAMES.index(target_label)
-        if target_idx != used_idx:
-            overlay2, _, _, _, _ = gradcam_on_pil(
-                model, image, class_idx=target_idx, alpha=alpha
-            )
-            st.image(
-                overlay2,
-                caption=f"Grad-CAM → {target_label}",
-                use_container_width=True
-            )
+        overlay2, _, _, _, _ = gradcam_on_pil(
+            model, image,
+            target_layer_name=target_layer_name,
+            class_idx=target_idx,
+            alpha=alpha,
+            mask_bg=mask_bg,
+            blend_with_res2=blend_with_res2
+        )
+        st.image(overlay2, caption=f"Grad-CAM ({target_layer_name}) → {target_label}", use_container_width=True)
 
-    # ====== Simpan Riwayat ======
+    # Simpan riwayat
     st.session_state["history"].append({
         "Tanggal": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "Nama File": uploaded_file.name,
         "Prediksi": CLASS_NAMES[used_idx],
-        "Probabilitas (%)": f"{float(probs_all[used_idx]) * 100:.2f}"
+        "Probabilitas (%)": f"{float(probs_all[used_idx]) * 100:.2f}",
+        "Layer": target_layer_name,
+        "MaskBG": mask_bg,
+        "BlendRes2": blend_with_res2
     })
 
-# ====== Tabel Riwayat + Unduh ======
+# Riwayat + unduh
 if st.session_state["history"]:
     st.subheader("📜 Histori Prediksi")
     df = pd.DataFrame(st.session_state["history"])
     st.dataframe(df, use_container_width=True)
-
     csv = df.to_csv(index=False).encode("utf-8")
     st.download_button("⬇️ Download CSV", csv, "histori_prediksi.csv", "text/csv")
 
-# ====== Footer ======
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; font-size:14px;'>
-Dibuat oleh <b>Muhammad Sahrul Farhan</b><br>
+Dibuat oleh <b>Farhan</b><br>
 🔗 <a href="https://linkedin.com/" target="_blank">LinkedIn</a> | 
 <a href="https://instagram.com/" target="_blank">Instagram</a> | 
 <a href="https://facebook.com/" target="_blank">Facebook</a>
