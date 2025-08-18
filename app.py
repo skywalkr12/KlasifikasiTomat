@@ -10,8 +10,11 @@ st.image(logo, width=100)
 st.markdown("<h1 style='color:#b22222;'>🍅 Aplikasi Deteksi Penyakit Tomat</h1>", unsafe_allow_html=True)
 
 st.write("""
-Selamat datang di aplikasi deteksi penyakit tomat berbasis Machine Learning.
+Selamat datang di aplikasi deteksi penyakit tomat berbasis Deep Learning.
 Gunakan menu di sidebar untuk membaca informasi penyakit dan memprediksi gambar daun tomat.
+
+Catatan: Ini adalah alat diagnosis dengan bantuan Kecerdasan Buatan dan sebaiknya digunakan hanya sebagai panduan.
+Untuk diagnosis yang konklusif, konsultasikan dengan ahli patologi tanaman profesional.
 """)
 
 st.image("images/tomato_banner.jpg", use_container_width=True)
