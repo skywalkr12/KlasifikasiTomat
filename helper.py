@@ -1,4 +1,4 @@
-# helper.py
+# helper.py (FIX: no in-place ReLU + safe hooks)
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -7,12 +7,12 @@ import numpy as np
 from PIL import Image
 from matplotlib import cm
 
-# (opsional)
+# (opsional untuk caching di Streamlit)
 try:
     import streamlit as st
 except ImportError:
-    class _Dummy: 
-        def cache_resource(self, **kw): 
+    class _Dummy:
+        def cache_resource(self, **kw):
             def deco(f): return f
             return deco
     st = _Dummy()
@@ -26,9 +26,9 @@ class SimpleResidualBlock(nn.Module):
     def __init__(self):
         super().__init__()
         self.conv1 = nn.Conv2d(3, 3, 3, 1, 1)
-        self.relu1 = nn.ReLU(inplace=True)
+        self.relu1 = nn.ReLU(inplace=False)  # FIX: no in-place
         self.conv2 = nn.Conv2d(3, 3, 3, 1, 1)
-        self.relu2 = nn.ReLU(inplace=True)
+        self.relu2 = nn.ReLU(inplace=False)  # FIX: no in-place
     def forward(self, x):
         out = self.relu1(self.conv1(x))
         out = self.conv2(out)
@@ -54,22 +54,25 @@ def ConvBlock(in_channels, out_channels, pool=False):
     layers = [
         nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
         nn.BatchNorm2d(out_channels),
-        nn.ReLU(inplace=True)
+        nn.ReLU(inplace=False)  # FIX: no in-place
     ]
     if pool:
-        layers.append(nn.MaxPool2d(4))  # downscale keras
+        layers.append(nn.MaxPool2d(4))
     return nn.Sequential(*layers)
 
 # ========= Model (ResNet9-variant) =========
 class ResNet18(ImageClassificationBase):
+    """
+    Catatan: ini arsitektur ResNet9-variant, bukan ResNet18 resmi.
+    """
     def __init__(self, num_diseases=10, in_channels=3):
         super().__init__()
-        self.conv1 = ConvBlock(in_channels, 64)               # 256 -> 256
-        self.conv2 = ConvBlock(64, 128, pool=True)            # 256 -> 64
+        self.conv1 = ConvBlock(in_channels, 64)               # 256
+        self.conv2 = ConvBlock(64, 128, pool=True)            # 64
         self.res1  = nn.Sequential(ConvBlock(128, 128),
                                    ConvBlock(128, 128))
-        self.conv3 = ConvBlock(128, 256, pool=True)           # 64 -> 16
-        self.conv4 = ConvBlock(256, 512, pool=True)           # 16 -> 4
+        self.conv3 = ConvBlock(128, 256, pool=True)           # 16
+        self.conv4 = ConvBlock(256, 512, pool=True)           # 4
         self.res2  = nn.Sequential(ConvBlock(512, 512),
                                    ConvBlock(512, 512))
         self.classifier = nn.Sequential(
@@ -105,8 +108,8 @@ CLASS_NAMES = [
 transform = transforms.Compose([
     transforms.Resize((256, 256)),
     transforms.ToTensor()
-    # Jika saat training pakai Normalize, aktifkan lagi di sini!
-    # transforms.Normalize(mean=[0.485,0.456,0.406], std=[0.229,0.224,0.225]),
+    # Jika saat training pakai Normalize, aktifkan kembali di sini.
+    # transforms.Normalize(mean=[...], std=[...]),
 ])
 
 # ========= Loader =========
@@ -133,8 +136,7 @@ def predict_image(model, image):
 # ========= Grad-CAM =========
 def _normalize_cam(cam: torch.Tensor):
     cam = torch.relu(cam)
-    cam_min = cam.min()
-    cam_max = cam.max()
+    cam_min, cam_max = cam.min(), cam.max()
     if (cam_max - cam_min) > 1e-8:
         cam = (cam - cam_min) / (cam_max - cam_min)
     else:
@@ -142,8 +144,7 @@ def _normalize_cam(cam: torch.Tensor):
     return cam
 
 def _upsample_cam(cam: torch.Tensor, size_hw: tuple[int,int]) -> torch.Tensor:
-    # cam: (Hc, Wc) -> (H, W)
-    cam = cam[None, None, ...]  # 1x1xHc x Wc
+    cam = cam[None, None, ...]
     cam = F.interpolate(cam, size=size_hw, mode="bilinear", align_corners=False)
     return cam[0,0]
 
@@ -151,19 +152,18 @@ def _overlay(pil_img: Image.Image, cam_hw01: np.ndarray, alpha: float = 0.45) ->
     base = np.asarray(pil_img.convert("RGB")).astype(np.float32) / 255.0
     H, W = base.shape[:2]
     cam_hw01 = np.clip(cam_hw01, 0.0, 1.0)
-    heat = cm.get_cmap("jet")(cam_hw01)[..., :3]   # H,W,3
+    heat = cm.get_cmap("jet")(cam_hw01)[..., :3]
     out = (1 - alpha) * base + alpha * heat
     out = np.clip(out, 0, 1)
     return Image.fromarray((out * 255).astype(np.uint8))
 
 def _simple_leaf_mask(pil_img: Image.Image) -> np.ndarray:
-    """Mask daun sederhana di ruang HSV (0..255). Hindari dependensi OpenCV."""
     hsv = np.asarray(pil_img.convert("HSV")).astype(np.int32)
     H, S, V = hsv[...,0], hsv[...,1], hsv[...,2]
     green  = (H >= 60) & (H <= 130) & (S >= 60) & (V >= 40)
     yellow = (H >= 35) & (H <= 59)  & (S >= 60) & (V >= 50)
     mask = (green | yellow).astype(np.float32)
-    # Haluskan sedikit (box filter 3x3 manual)
+    # box blur 3x3
     if mask.sum() > 0:
         k = 3
         pad = k // 2
@@ -178,20 +178,20 @@ def _simple_leaf_mask(pil_img: Image.Image) -> np.ndarray:
 def get_target_layer(model: nn.Module, name: str):
     """
     Pilihan:
-      - "conv2_prepool" -> resolusi ~64x64
-      - "conv3_prepool" -> resolusi ~64x64 (karena pooling dilakukan setelah ReLU)
-      - "conv4_prepool" -> resolusi ~16x16  (tajam & semantik)
-      - "res2"          -> resolusi ~4x4   (sangat semantik, kasar)
+      - "conv4_prepool" -> hook ReLU sebelum pool (16x16)
+      - "conv3_prepool" -> 16x16 (sesuai arsitektur ini)
+      - "conv2_prepool" -> 64x64
+      - "res2"          -> 4x4 (sangat semantik)
     """
     if name == "res2":
         return model.res2
     if name == "conv4_prepool":
-        return model.conv4[2]  # ReLU sebelum MaxPool2d(4)
+        return model.conv4[2]  # ReLU (sudah non-inplace)
     if name == "conv3_prepool":
         return model.conv3[2]
     if name == "conv2_prepool":
         return model.conv2[2]
-    raise ValueError(f"Nama target_layer tidak dikenal: {name}")
+    raise ValueError(f"target_layer tidak dikenal: {name}")
 
 class GradCAM:
     def __init__(self, model: nn.Module, target_layer: nn.Module):
@@ -206,17 +206,18 @@ class GradCAM:
             self.h2 = target_layer.register_backward_hook(self._bhook)
 
     def _fhook(self, module, inp, out):
-        self._A = out  # keep graph
+        # FIX: detach agar tidak dianggap view yg akan dimodifikasi
+        self._A = out.detach().clone()
 
     def _bhook(self, module, gin, gout):
-        self._G = gout[0]
+        # FIX: detach/clone grad output
+        self._G = gout[0].detach().clone()
 
     def remove(self):
         self.h1.remove()
         self.h2.remove()
 
     def compute(self, x: torch.Tensor, class_idx: int | None = None):
-        # pastikan grad aktif
         with torch.enable_grad():
             self.model.zero_grad(set_to_none=True)
             out = self.model(x)                # 1 x C
@@ -242,20 +243,17 @@ def gradcam_on_pil(
     mask_bg: bool = False,
     blend_with_res2: bool = False,
 ):
-    """
-    Hitung Grad-CAM. Bisa pilih layer target dan masking background.
-    """
     x = transform(pil_img).unsqueeze(0)
 
     # CAM utama
     tl = get_target_layer(model, target_layer_name)
     engine = GradCAM(model, tl)
     try:
-        cam, used_idx, probs = engine.compute(x, class_idx=class_idx)  # (Hc,Wc)
+        cam, used_idx, probs = engine.compute(x, class_idx=class_idx)
     finally:
         engine.remove()
 
-    # Opsional: blend dengan res2 (lebih semantik) -> menstabilkan peta
+    # Opsional: blend dengan res2
     if blend_with_res2 and target_layer_name != "res2":
         tl2 = get_target_layer(model, "res2")
         engine2 = GradCAM(model, tl2)
@@ -263,14 +261,13 @@ def gradcam_on_pil(
             cam2, _, _ = engine2.compute(x, class_idx=used_idx)
         finally:
             engine2.remove()
-        # normalisasi lalu gabung
         cam = 0.6 * cam + 0.4 * cam2
 
-    # Upsample CAM ke ukuran gambar
+    # Upsample ke ukuran input
     H, W = pil_img.size[1], pil_img.size[0]
     cam_up = _upsample_cam(cam, (H, W))
 
-    # Mask background (opsional)
+    # Mask background
     if mask_bg:
         m = _simple_leaf_mask(pil_img)
         cam_up = cam_up * torch.tensor(m, dtype=cam_up.dtype)
@@ -280,7 +277,6 @@ def gradcam_on_pil(
     pred_label = CLASS_NAMES[used_idx] if 0 <= used_idx < len(CLASS_NAMES) else str(used_idx)
     return overlay, cam_up, pred_label, used_idx, probs
 
-# UI helper siap pakai (bisa dipanggil dari Streamlit)
 def show_prediction_and_cam(
     model: nn.Module,
     pil_img: Image.Image,
@@ -308,7 +304,7 @@ def show_prediction_and_cam(
         blend_with_res2=blend_with_res2
     )
 
-    # Tampilkan (Streamlit)
+    # Tampilkan (jika pakai Streamlit)
     try:
         col1, col2 = st.columns([1,1])
         with col1:
@@ -321,7 +317,6 @@ def show_prediction_and_cam(
         with col2:
             st.image(overlay, caption=f"Grad-CAM ({target_layer_name}) → {pred_label}", use_container_width=True)
     except Exception:
-        # Jika bukan di Streamlit, abaikan tampilan.
         pass
 
     return overlay, cam, used_idx, probs_all
