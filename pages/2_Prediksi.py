@@ -47,14 +47,12 @@ if uploaded_file:
     # Prediksi + Grad-CAM
     overlay, cam, used_idx, probs_all = show_prediction_and_cam(
         model, image,
-        target_layer_name="conv3_prepool",  # 64×64: tajam untuk lesi
-        mask_bg=True,
-        include_brown=True,                 # <- penting!
-        lesion_boost=True, lesion_weight=0.5,
-        blend_with_res2=True,               # opsional stabilkan semantik
-        alpha=0.45, topk=3
+        alpha=alpha,
+        topk=topk,
+        target_layer_name=target_layer_name,
+        mask_bg=mask_bg,
+        blend_with_res2=blend_with_res2
     )
-
 
     # Chart probabilitas lengkap
     if show_full_chart:
