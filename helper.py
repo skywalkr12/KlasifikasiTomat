@@ -1,4 +1,4 @@
-# helper.py (FIX: no in-place ReLU + safe hooks)
+# helper.py (No-inplace ReLU + safe BN hooks + cache-bust)
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -7,7 +7,7 @@ import numpy as np
 from PIL import Image
 from matplotlib import cm
 
-# (opsional untuk caching di Streamlit)
+# Streamlit opsional
 try:
     import streamlit as st
 except ImportError:
@@ -17,7 +17,7 @@ except ImportError:
             return deco
     st = _Dummy()
 
-# ========= Utils umum =========
+# ========= Utils =========
 def accuracy(outputs, labels):
     _, preds = torch.max(outputs, dim=1)
     return torch.tensor(torch.sum(preds == labels).item() / len(preds))
@@ -26,9 +26,9 @@ class SimpleResidualBlock(nn.Module):
     def __init__(self):
         super().__init__()
         self.conv1 = nn.Conv2d(3, 3, 3, 1, 1)
-        self.relu1 = nn.ReLU(inplace=False)  # FIX: no in-place
+        self.relu1 = nn.ReLU(inplace=False)
         self.conv2 = nn.Conv2d(3, 3, 3, 1, 1)
-        self.relu2 = nn.ReLU(inplace=False)  # FIX: no in-place
+        self.relu2 = nn.ReLU(inplace=False)
     def forward(self, x):
         out = self.relu1(self.conv1(x))
         out = self.conv2(out)
@@ -54,7 +54,7 @@ def ConvBlock(in_channels, out_channels, pool=False):
     layers = [
         nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
         nn.BatchNorm2d(out_channels),
-        nn.ReLU(inplace=False)  # FIX: no in-place
+        nn.ReLU(inplace=False)
     ]
     if pool:
         layers.append(nn.MaxPool2d(4))
@@ -62,17 +62,14 @@ def ConvBlock(in_channels, out_channels, pool=False):
 
 # ========= Model (ResNet9-variant) =========
 class ResNet18(ImageClassificationBase):
-    """
-    Catatan: ini arsitektur ResNet9-variant, bukan ResNet18 resmi.
-    """
     def __init__(self, num_diseases=10, in_channels=3):
         super().__init__()
-        self.conv1 = ConvBlock(in_channels, 64)               # 256
-        self.conv2 = ConvBlock(64, 128, pool=True)            # 64
+        self.conv1 = ConvBlock(in_channels, 64)               # 256 -> 256
+        self.conv2 = ConvBlock(64, 128, pool=True)            # 256 -> 64
         self.res1  = nn.Sequential(ConvBlock(128, 128),
                                    ConvBlock(128, 128))
-        self.conv3 = ConvBlock(128, 256, pool=True)           # 16
-        self.conv4 = ConvBlock(256, 512, pool=True)           # 4
+        self.conv3 = ConvBlock(128, 256, pool=True)           # 64 -> 16
+        self.conv4 = ConvBlock(256, 512, pool=True)           # 16 -> 4
         self.res2  = nn.Sequential(ConvBlock(512, 512),
                                    ConvBlock(512, 512))
         self.classifier = nn.Sequential(
@@ -108,23 +105,32 @@ CLASS_NAMES = [
 transform = transforms.Compose([
     transforms.Resize((256, 256)),
     transforms.ToTensor()
-    # Jika saat training pakai Normalize, aktifkan kembali di sini.
+    # Jika training pakai Normalize, aktifkan juga di sini.
     # transforms.Normalize(mean=[...], std=[...]),
 ])
 
-# ========= Loader =========
+# ========= Patch helper =========
+def _disable_inplace_relu(model: nn.Module):
+    """Setiap nn.ReLU di model dipaksa inplace=False (tambahan safety post-load)."""
+    for m in model.modules():
+        if isinstance(m, nn.ReLU):
+            m.inplace = False
+    return model
+
+# ========= Loader (dengan cache-bust arg) =========
 @st.cache_resource
-def load_model():
+def load_model(cache_bust: str = "noinplace-v3"):
     model = ResNet18(num_diseases=len(CLASS_NAMES), in_channels=3)
     sd = torch.load("model/resnet_97_56.pt", map_location="cpu")
     if isinstance(sd, dict) and "model_state_dict" in sd:
         sd = sd["model_state_dict"]
     sd = { (k.replace("module.","") if k.startswith("module.") else k): v for k,v in sd.items() }
     model.load_state_dict(sd, strict=True)
+    _disable_inplace_relu(model)  # <<— patch setelah load
     model.eval()
     return model
 
-# ========= Prediksi biasa =========
+# ========= Prediksi =========
 @torch.no_grad()
 def predict_image(model, image):
     img = transform(image).unsqueeze(0)
@@ -177,20 +183,20 @@ def _simple_leaf_mask(pil_img: Image.Image) -> np.ndarray:
 
 def get_target_layer(model: nn.Module, name: str):
     """
-    Pilihan:
-      - "conv4_prepool" -> hook ReLU sebelum pool (16x16)
-      - "conv3_prepool" -> 16x16 (sesuai arsitektur ini)
-      - "conv2_prepool" -> 64x64
-      - "res2"          -> 4x4 (sangat semantik)
+    Hook ke BN (bukan ReLU) untuk aman dari in-place:
+      - "conv4_prepool" -> model.conv4[1] (BN), resolusi ~16x16
+      - "conv3_prepool" -> model.conv3[1] (BN), resolusi ~16x16
+      - "conv2_prepool" -> model.conv2[1] (BN), resolusi ~64x64
+      - "res2"          -> output block (4x4, sangat semantik)
     """
     if name == "res2":
         return model.res2
     if name == "conv4_prepool":
-        return model.conv4[2]  # ReLU (sudah non-inplace)
+        return model.conv4[1]
     if name == "conv3_prepool":
-        return model.conv3[2]
+        return model.conv3[1]
     if name == "conv2_prepool":
-        return model.conv2[2]
+        return model.conv2[1]
     raise ValueError(f"target_layer tidak dikenal: {name}")
 
 class GradCAM:
@@ -206,11 +212,9 @@ class GradCAM:
             self.h2 = target_layer.register_backward_hook(self._bhook)
 
     def _fhook(self, module, inp, out):
-        # FIX: detach agar tidak dianggap view yg akan dimodifikasi
-        self._A = out.detach().clone()
+        self._A = out.detach().clone()  # aman dari view+inplace
 
     def _bhook(self, module, gin, gout):
-        # FIX: detach/clone grad output
         self._G = gout[0].detach().clone()
 
     def remove(self):
@@ -304,7 +308,7 @@ def show_prediction_and_cam(
         blend_with_res2=blend_with_res2
     )
 
-    # Tampilkan (jika pakai Streamlit)
+    # Tampilkan (jika di Streamlit)
     try:
         col1, col2 = st.columns([1,1])
         with col1:
