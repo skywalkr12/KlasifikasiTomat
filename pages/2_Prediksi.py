@@ -14,7 +14,7 @@ from helper import (
 )
 
 st.set_page_config(page_title="Prediksi Penyakit Tomat + Grad-CAM", layout="wide")
-st.title("🔍 Prediksi Penyakit Tomat + Grad-CAM (tajam)")
+st.title("🔍 Prediksi Penyakit Tomat + Grad-CAM (aman)")
 
 if "history" not in st.session_state:
     st.session_state["history"] = []
@@ -25,8 +25,7 @@ with st.sidebar:
     target_layer_name = st.selectbox(
         "Layer target Grad-CAM",
         options=["conv4_prepool", "conv3_prepool", "conv2_prepool", "res2"],
-        index=0,  # default: conv4_prepool (16x16)
-        help="Pilih layer sebelum pooling untuk peta lebih tajam."
+        index=0
     )
     alpha = st.slider("Transparansi Heatmap (α)", 0.0, 1.0, 0.45, 0.05)
     topk  = st.slider("Jumlah alternatif (Top-k)", 1, min(5, len(CLASS_NAMES)), 3, 1)
@@ -36,8 +35,8 @@ with st.sidebar:
     show_full_chart = st.checkbox("Tampilkan chart probabilitas lengkap", True)
     sort_desc = st.checkbox("Urutkan chart menurun", True)
 
-# ----- Model -----
-model = load_model()
+# ----- Model (pakai cache-bust agar benar-benar reload) -----
+model = load_model(cache_bust="noinplace-v3")
 
 # ----- Uploader -----
 uploaded_file = st.file_uploader("Upload gambar daun tomat", type=["jpg", "jpeg", "png"])
@@ -45,7 +44,7 @@ uploaded_file = st.file_uploader("Upload gambar daun tomat", type=["jpg", "jpeg"
 if uploaded_file:
     image = Image.open(uploaded_file).convert("RGB")
 
-    # Tampilkan prediksi + Grad-CAM (dengan opsi baru)
+    # Prediksi + Grad-CAM
     overlay, cam, used_idx, probs_all = show_prediction_and_cam(
         model, image,
         alpha=alpha,
