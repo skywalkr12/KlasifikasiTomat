@@ -51,6 +51,7 @@ if uploaded_file:
         topk=topk,
         target_layer_name=target_layer_name,
         include_brown=True,
+        lesion_boost=True, lesion_weight=0.5,
         mask_bg=mask_bg,
         blend_with_res2=blend_with_res2
     )
@@ -76,6 +77,7 @@ if uploaded_file:
             model, image,
             target_layer_name=target_layer_name,
             include_brown=True,
+            lesion_boost=True, lesion_weight=0.5,
             class_idx=target_idx,
             alpha=alpha,
             mask_bg=mask_bg,
