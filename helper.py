@@ -1,16 +1,12 @@
 # helper.py
 # — ResNet9-variant + Grad-CAM + Leaf&Brown Mask + Lesion Prior —
-# Referensi utama:
-# - Grad-CAM: Selvaraju et al., ICCV 2017 / arXiv:1610.02391
-# - Grad-CAM++: Chattopadhyay et al., WACV 2018 / arXiv:1710.11063
-# - Layer-CAM: Jiang/Yang et al., IEEE TIP 2021
-# - Temperature scaling (kalibrasi): Guo et al., ICML 2017
+# Referensi:
+# - Grad-CAM: Selvaraju et al., 2017 (ICCV / IJCV)
+# - Grad-CAM++: Chattopadhyay et al., 2018 (WACV)
+# - Layer-CAM: Jiang/Yang et al., 2021 (IEEE TIP)
 #
-# Tambahan penting:
-# - Grad-CAM++ & Layer-CAM
-# - Erosi tepi mask 1px (opsional)
-# - Kalibrasi probabilitas tampilan via temperature scaling
-#   (menghindari 100% tanpa mengubah keputusan kelas/Top-k)
+# Catatan: Probabilitas untuk TAMPILAN dipotong maksimum 0.97 (tanpa kalibrasi).
+# Argmax/urutan kelas tetap dari softmax standar (hanya clamp untuk display).
 
 import torch, numpy as np
 import torch.nn as nn
@@ -141,22 +137,16 @@ def load_model(cache_bust: str = "noinplace-v5"):
     model.eval()
     return model
 
-# ========= Prediksi (dengan kalibrasi tampilan) =========
-def _calibrated_probs(logits: torch.Tensor, T: float = 1.5, eps: float = 1e-4) -> torch.Tensor:
-    """Softmax terkalibrasi untuk tampilan; mencegah 100%."""
-    p = torch.softmax(logits / float(T), dim=0)
-    p = torch.clamp(p, eps, 1.0 - eps)  # hindari 0.0 atau 1.0
-    p = p / p.sum()                     # re-normalisasi
-    return p
-
+# ========= Prediksi =========
 @torch.no_grad()
-def predict_image(model, image, temperature: float = 1.5, eps: float = 1e-4):
+def predict_image(model, image, max_prob: float = 0.97):
     x = transform(image).unsqueeze(0)
     out = model(x)
-    logits = out[0]
-    idx = int(torch.argmax(logits).item())                # keputusan kelas dari logits mentah
-    probs = _calibrated_probs(logits, T=temperature, eps=eps)
-    return CLASS_NAMES[idx], probs.numpy()
+    probs = torch.softmax(out[0], dim=0).cpu().numpy()
+    idx = int(np.argmax(probs))
+    # Potong semua probabilitas untuk DISPLAY (tanpa re-normalisasi)
+    probs = np.clip(probs, 0.0, float(max_prob))
+    return CLASS_NAMES[idx], probs
 
 # ========= CAM util =========
 def _normalize_cam(cam: torch.Tensor):
@@ -201,15 +191,11 @@ def _erode_min(mask: np.ndarray, k: int = 3, iters: int = 1) -> np.ndarray:
 def _leaf_mask_hsv_with_brown(pil_img: Image.Image) -> np.ndarray:
     hsv = np.asarray(pil_img.convert("HSV")).astype(np.int32)
     H, S, V = hsv[...,0], hsv[...,1], hsv[...,2]
-
     green  = (H>=60) & (H<=130) & (S>=60) & (V>=40)
     yellow = (H>=35) & (H<=59)  & (S>=60) & (V>=50)
     brown1 = (H>=8)  & (H<=35)  & (S>=50) & (V>=20) & (V<=200)
     brown2 = (H<=8)  & (S>=60)  & (V>=10) & (V<=180)
-
     mask = (green | yellow | brown1 | brown2).astype(np.float32)
-
-    # box blur 3x3 agar halus
     if mask.sum() > 0:
         k = 3; pad = k // 2
         padded = np.pad(mask, ((pad,pad),(pad,pad)), mode="edge")
@@ -229,7 +215,6 @@ def _lesion_prior_brown(pil_img: Image.Image) -> np.ndarray:
     V = np.asarray(pil_img.convert("HSV"))[...,2].astype(np.float32) / 255.0
     darkness = np.clip((0.8 - V) / 0.8, 0, 1)
     prior = 0.6 * brownness + 0.4 * darkness
-    # haluskan box 3x3
     k = 3; pad = k // 2
     padded = np.pad(prior, ((pad,pad),(pad,pad)), mode="edge")
     sm = np.zeros_like(prior)
@@ -255,7 +240,7 @@ def get_target_layer(model: nn.Module, name: str):
         return model.conv2[1]
     raise ValueError(f"target_layer tidak dikenal: {name}")
 
-# ========= Engine hook =========
+# ========= Engine hook dasar =========
 class _HookEngine:
     def __init__(self, model: nn.Module, target_layer: nn.Module):
         self.model = model.eval()
@@ -275,7 +260,7 @@ class _HookEngine:
         self.h1.remove()
         self.h2.remove()
 
-# ========= Grad-CAM =========
+# ========= Grad-CAM (standar, yang dipakai) =========
 class GradCAM:
     def __init__(self, model: nn.Module, target_layer: nn.Module):
         self.model = model.eval()
@@ -298,61 +283,13 @@ class GradCAM:
             cam = _normalize_cam(cam)
         return cam, class_idx, probs.detach().cpu().numpy()
 
-# ========= Grad-CAM++ =========
-class GradCAMPP:
-    def __init__(self, model: nn.Module, target_layer: nn.Module):
-        self.model = model.eval()
-        self.hook = _HookEngine(model, target_layer)
-    def remove(self):
-        self.hook.remove()
-    def compute(self, x: torch.Tensor, class_idx: int | None = None):
-        with torch.enable_grad():
-            self.model.zero_grad(set_to_none=True)
-            out = self.model(x)
-            probs = torch.softmax(out, dim=1)[0]
-            if class_idx is None:
-                class_idx = int(torch.argmax(probs).item())
-            score = out[0, class_idx]
-            score.backward(retain_graph=False)
-            A = self.hook._A[0]    # (C,H,W)
-            G = self.hook._G[0]    # (C,H,W)
-            G2 = G * G
-            G3 = G2 * G
-            eps = 1e-6
-            alpha = G2 / (2.0 * G2 + A * G3 + eps)
-            positive_grads = torch.relu(G)
-            weights = (alpha * positive_grads).sum(dim=(1,2))  # (C,)
-            cam = (weights[:, None, None] * A).sum(dim=0)
-            cam = _normalize_cam(cam)
-        return cam, class_idx, probs.detach().cpu().numpy()
-
-# ========= Layer-CAM =========
-class LayerCAM:
-    def __init__(self, model: nn.Module, target_layer: nn.Module):
-        self.model = model.eval()
-        self.hook = _HookEngine(model, target_layer)
-    def remove(self):
-        self.hook.remove()
-    def compute(self, x: torch.Tensor, class_idx: int | None = None):
-        with torch.enable_grad():
-            self.model.zero_grad(set_to_none=True)
-            out = self.model(x)
-            probs = torch.softmax(out, dim=1)[0]
-            if class_idx is None:
-                class_idx = int(torch.argmax(probs).item())
-            score = out[0, class_idx]
-            score.backward(retain_graph=False)
-            A = self.hook._A[0]     # (C,H,W)
-            G = self.hook._G[0]     # (C,H,W)
-            cam = torch.sum(torch.relu(G) * A, dim=0)
-            cam = _normalize_cam(cam)
-        return cam, class_idx, probs.detach().cpu().numpy()
+# (Grad-CAM++ / Layer-CAM disimpan agar kompatibel, tapi tidak dipakai dari UI)
 
 # ========= API utama =========
 def gradcam_on_pil(
     model: nn.Module,
     pil_img: Image.Image,
-    target_layer_name: str = "conv3_prepool",  # 64x64
+    target_layer_name: str = "conv3_prepool",
     class_idx: int | None = None,
     alpha: float = 0.45,
     mask_bg: bool = True,
@@ -360,40 +297,33 @@ def gradcam_on_pil(
     lesion_boost: bool = True,
     lesion_weight: float = 0.5,
     blend_with_res2: bool = False,
-    method: str = "gradcam",             # "gradcam" | "gradcam++" | "layercam"
-    erode_border: bool = False           # erosi 1px
+    method: str = "gradcam",      # dikunci ke "gradcam" dari UI
+    erode_border: bool = False
 ):
     x = transform(pil_img).unsqueeze(0)
 
-    # CAM utama
+    # Engine selalu Grad-CAM standar
     tl = get_target_layer(model, target_layer_name)
-    if method.lower() == "gradcam++":
-        engine = GradCAMPP(model, tl)
-    elif method.lower() == "layercam":
-        engine = LayerCAM(model, tl)
-    else:
-        engine = GradCAM(model, tl)
-
+    engine = GradCAM(model, tl)
     try:
-        cam, used_idx, probs = engine.compute(x, class_idx=class_idx)   # (Hc,Wc)
+        cam, used_idx, probs = engine.compute(x, class_idx=class_idx)
     finally:
         engine.remove()
 
-    # Blend dengan res2 (4x4) jika diminta
+    # Blend dengan res2 (perbaikan semantik)
     if blend_with_res2 and target_layer_name != "res2":
         tl2 = get_target_layer(model, "res2")
-        engine2 = GradCAMPP(model, tl2) if method.lower()=="gradcam++" \
-                 else (LayerCAM(model, tl2) if method.lower()=="layercam" else GradCAM(model, tl2))
+        engine2 = GradCAM(model, tl2)
         try:
-            cam2, _, _ = engine2.compute(x, class_idx=used_idx)         # (4,4)
+            cam2, _, _ = engine2.compute(x, class_idx=used_idx)
         finally:
             engine2.remove()
         cam2 = _resize_like(cam2, cam)
         cam  = _normalize_cam(0.6 * cam + 0.4 * cam2)
 
-    # Upsample ke ukuran gambar
+    # Upsample
     H, W = pil_img.size[1], pil_img.size[0]
-    cam_up = _upsample_cam(cam, (H, W))                                 # torch (H,W)
+    cam_up = _upsample_cam(cam, (H, W))
 
     # Mask daun
     if mask_bg:
@@ -434,16 +364,15 @@ def show_prediction_and_cam(
     blend_with_res2: bool = False,
     method: str = "gradcam",
     erode_border: bool = False,
-    temperature: float = 1.5,     # <<— kalibrasi tampilan
-    eps: float = 1e-4
+    max_prob: float = 0.97        # <<— batasi tampilan hingga 97%
 ):
     # Prediksi
     with torch.no_grad():
         x = transform(pil_img).unsqueeze(0)
         out = model(x)
-        logits = out[0]
-        used_idx = int(torch.argmax(logits).item())                   # keputusan kelas tetap dari logits
-        probs_all = _calibrated_probs(logits, T=temperature, eps=eps).cpu().numpy()
+        probs_all = torch.softmax(out[0], dim=0).cpu().numpy()
+        used_idx = int(np.argmax(probs_all))
+        probs_all = np.clip(probs_all, 0.0, float(max_prob))  # potong untuk display
     pred_label = CLASS_NAMES[used_idx]
 
     # Grad-CAM
@@ -457,7 +386,7 @@ def show_prediction_and_cam(
         lesion_boost=lesion_boost,
         lesion_weight=lesion_weight,
         blend_with_res2=blend_with_res2,
-        method=method,
+        method="gradcam",
         erode_border=erode_border
     )
 
@@ -472,9 +401,8 @@ def show_prediction_and_cam(
             st.markdown("**Alternatif (Top-k)**")
             st.markdown("\n".join([f"{'★' if i==used_idx else '•'} {CLASS_NAMES[i]}: {probs_all[i]:.2%}" for i in order]))
         with col2:
-            st.image(overlay, caption=f"{method.upper()} ({target_layer_name}) → {pred_label}", use_container_width=True)
+            st.image(overlay, caption=f"Grad-CAM ({target_layer_name}) → {pred_label}", use_container_width=True)
     except Exception:
         pass
 
     return overlay, cam, used_idx, probs_all
-
