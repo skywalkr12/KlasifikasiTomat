@@ -1,6 +1,6 @@
 # helper.py
 # — ResNet9-variant + Grad-CAM + Leaf&Brown Mask + Lesion Prior —
-# Tampilan probabilitas TIDAK dipotong lagi; sediakan util format_probs_for_display untuk visual.
+# Tidak ada rendering Streamlit di file ini. Semua tampilan diatur dari prediksi.py.
 
 import torch, numpy as np
 import torch.nn as nn
@@ -8,16 +8,6 @@ import torch.nn.functional as F
 import torchvision.transforms as transforms
 from PIL import Image
 from matplotlib import cm
-
-# Streamlit opsional
-try:
-    import streamlit as st
-except ImportError:
-    class _Dummy:
-        def cache_resource(self, **kw):
-            def deco(f): return f
-            return deco
-    st = _Dummy()
 
 # ========= Util umum =========
 def accuracy(outputs, labels):
@@ -62,7 +52,7 @@ def ConvBlock(in_channels, out_channels, pool=False):
         layers.append(nn.MaxPool2d(4))
     return nn.Sequential(*layers)
 
-# ========= Model (ResNet9-variant, nama kelas tetap ResNet18 agar kompatibel) =========
+# ========= Model (ResNet9-variant, class-name dibiarkan ResNet18 untuk kompatibilitas) =========
 class ResNet18(ImageClassificationBase):
     def __init__(self, num_diseases=10, in_channels=3):
         super().__init__()
@@ -107,19 +97,11 @@ CLASS_NAMES = [
 transform = transforms.Compose([
     transforms.Resize((256, 256)),
     transforms.ToTensor()
-    # Bila training pakai Normalize, aktifkan lagi di sini:
+    # Jika training pakai Normalize, aktifkan lagi di sini:
     # transforms.Normalize(mean=[0.485,0.456,0.406], std=[0.229,0.224,0.225]),
 ])
 
-# ========= Patch util =========
-def _disable_inplace_relu(model: nn.Module):
-    for m in model.modules():
-        if isinstance(m, nn.ReLU):
-            m.inplace = False
-    return model
-
 # ========= Loader =========
-@st.cache_resource
 def load_model(cache_bust: str = "noinplace-v5"):
     model = ResNet18(num_diseases=len(CLASS_NAMES), in_channels=3)
     sd = torch.load("model/resnet9_97.pt", map_location="cpu")
@@ -127,11 +109,14 @@ def load_model(cache_bust: str = "noinplace-v5"):
         sd = sd["model_state_dict"]
     sd = { (k.replace("module.","") if k.startswith("module.") else k): v for k,v in sd.items() }
     model.load_state_dict(sd, strict=True)
-    _disable_inplace_relu(model)
+    # matikan inplace ReLU (aman untuk Grad-CAM)
+    for m in model.modules():
+        if isinstance(m, nn.ReLU):
+            m.inplace = False
     model.eval()
     return model
 
-# ========= Prediksi (SEKARANG TANPA PEMOTONGAN) =========
+# ========= Prediksi (RAW, tanpa clipping) =========
 @torch.no_grad()
 def predict_image(model, image):
     x = transform(image).unsqueeze(0)
@@ -140,59 +125,12 @@ def predict_image(model, image):
     idx = int(np.argmax(probs_raw))
     return CLASS_NAMES[idx], probs_raw, out[0].detach().cpu().numpy()
 
-# ========= Util tampilan probabilitas =========
-def format_probs_for_display(
-    probs_raw: np.ndarray,
-    mode: str = "raw",             # "raw" | "temperature" | "topk_renorm"
-    temperature: float = 1.0,      # >1 = lebih menyebar
-    eps: float = 0.0,              # floor min untuk tiap kelas (visual smoothing)
-    topk: int | None = None        # untuk mode topk_renorm
-) -> np.ndarray:
-    p = probs_raw.astype(np.float64).copy()
-    K = p.size
-
-    if mode == "temperature":
-        # Softmax temperature approx tanpa logits: p^(1/T) lalu renorm
-        T = max(1e-6, float(temperature))
-        p = np.power(p, 1.0 / T)
-        s = p.sum()
-        p = p / s if s > 0 else np.full_like(p, 1.0 / K)
-
-    elif mode == "topk_renorm":
-        if topk is None or topk < 1:
-            return p  # fallback
-        order = np.argsort(-p)[:topk]
-        p_top = p[order]
-        denom = p_top.sum()
-        p_vis = np.zeros_like(p)
-        if denom > 0:
-            p_vis[order] = p_top / denom
-        else:
-            p_vis[order] = 1.0 / topk
-        p = p_vis
-
-    else:
-        # "raw": tidak diapa-apakan
-        pass
-
-    # Tambahkan floor eps untuk menghindari 0 murni pada kelas kecil (opsional)
-    if eps > 0.0:
-        eps = float(eps)
-        p = (1.0 - K * eps) * p + eps
-        p = np.clip(p, 0.0, 1.0)
-        s = p.sum()
-        p = p / s if s > 0 else np.full_like(p, 1.0 / K)
-
-    return p
-
 # ========= CAM util =========
 def _normalize_cam(cam: torch.Tensor):
     cam = torch.relu(cam)
     mn, mx = cam.min(), cam.max()
-    if (mx - mn) > 1e-8:
-        cam = (cam - mn) / (mx - mn)
-    else:
-        cam = torch.zeros_like(cam)
+    if (mx - mn) > 1e-8: cam = (cam - mn) / (mx - mn)
+    else:                cam = torch.zeros_like(cam)
     return cam
 
 def _upsample_cam(cam: torch.Tensor, size_hw: tuple[int,int]) -> torch.Tensor:
@@ -210,8 +148,7 @@ def _overlay(pil_img: Image.Image, cam_hw01: np.ndarray, alpha: float = 0.45) ->
 
 # --- Erosi sederhana (min-filter) untuk mask float 0..1 ---
 def _erode_min(mask: np.ndarray, k: int = 3, iters: int = 1) -> np.ndarray:
-    if k <= 1 or iters <= 0:
-        return mask
+    if k <= 1 or iters <= 0: return mask
     m = mask.copy()
     for _ in range(iters):
         pad = k // 2
@@ -240,7 +177,6 @@ def _leaf_mask_hsv_with_brown(pil_img: Image.Image) -> np.ndarray:
     brown1 = (H>=8)  & (H<=35)  & (S>=50) & (V>=20) & (V<=200)
     brown2 = (H<=8)  & (S>=60)  & (V>=10) & (V<=180)
     mask = (green | yellow | brown1 | brown2).astype(np.float32)
-
     # halus tipis (box 3x3)
     if mask.sum() > 0:
         k = 3; pad = k // 2
@@ -271,20 +207,15 @@ def _lesion_prior_brown(pil_img: Image.Image) -> np.ndarray:
     return np.clip(sm, 0, 1)
 
 def _resize_like(cam_src: torch.Tensor, cam_ref: torch.Tensor) -> torch.Tensor:
-    if cam_src.shape == cam_ref.shape:
-        return cam_src
+    if cam_src.shape == cam_ref.shape: return cam_src
     return _upsample_cam(cam_src, (cam_ref.shape[0], cam_ref.shape[1]))
 
 # ========= Target layer Grad-CAM =========
 def get_target_layer(model: nn.Module, name: str):
-    if name == "res2":
-        return model.res2
-    if name == "conv4_prepool":
-        return model.conv4[1]
-    if name == "conv3_prepool":
-        return model.conv3[1]
-    if name == "conv2_prepool":
-        return model.conv2[1]
+    if name == "res2":            return model.res2
+    if name == "conv4_prepool":   return model.conv4[1]
+    if name == "conv3_prepool":   return model.conv3[1]
+    if name == "conv2_prepool":   return model.conv2[1]
     raise ValueError(f"target_layer tidak dikenal: {name}")
 
 # ========= Grad-CAM standar =========
@@ -298,16 +229,9 @@ class GradCAM:
             self.h2 = target_layer.register_full_backward_hook(self._bhook)
         except AttributeError:
             self.h2 = target_layer.register_backward_hook(self._bhook)
-
-    def _fhook(self, module, inp, out):
-        self._A = out.detach().clone()
-
-    def _bhook(self, module, gin, gout):
-        self._G = gout[0].detach().clone()
-
-    def remove(self):
-        self.h1.remove()
-        self.h2.remove()
+    def _fhook(self, module, inp, out):       self._A = out.detach().clone()
+    def _bhook(self, module, gin, gout):      self._G = gout[0].detach().clone()
+    def remove(self):                         self.h1.remove(); self.h2.remove()
 
     def compute(self, x: torch.Tensor, class_idx: int | None = None):
         with torch.enable_grad():
@@ -318,7 +242,6 @@ class GradCAM:
                 class_idx = int(torch.argmax(probs).item())
             score = out[0, class_idx]
             score.backward(retain_graph=False)
-
             A = self._A[0]                                # (C,H,W)
             G = self._G[0]                                # (C,H,W)
             weights = G.view(G.size(0), -1).mean(dim=1)   # (C,)
@@ -326,7 +249,7 @@ class GradCAM:
             cam = _normalize_cam(cam)
         return cam, class_idx, probs.detach().cpu().numpy()
 
-# ========= API utama =========
+# ========= API utama (tidak merender) =========
 def gradcam_on_pil(
     model: nn.Module,
     pil_img: Image.Image,
@@ -346,7 +269,7 @@ def gradcam_on_pil(
     tl = get_target_layer(model, target_layer_name)
     engine = GradCAM(model, tl)
     try:
-        cam, used_idx, probs = engine.compute(x, class_idx=class_idx)   # (Hc,Wc)
+        cam, used_idx, probs = engine.compute(x, class_idx=class_idx)
     finally:
         engine.remove()
 
@@ -355,17 +278,17 @@ def gradcam_on_pil(
         tl2 = get_target_layer(model, "res2")
         engine2 = GradCAM(model, tl2)
         try:
-            cam2, _, _ = engine2.compute(x, class_idx=used_idx)         # (4,4)
+            cam2, _, _ = engine2.compute(x, class_idx=used_idx)
         finally:
             engine2.remove()
         cam2 = _resize_like(cam2, cam)
         cam  = _normalize_cam(0.6 * cam + 0.4 * cam2)
 
-    # Upsample ke ukuran gambar
+    # Upsample ke ukuran gambar asli
     H, W = pil_img.size[1], pil_img.size[0]
-    cam_up = _upsample_cam(cam, (H, W))                                 # torch (H,W)
+    cam_up = _upsample_cam(cam, (H, W))
 
-    # Mask daun (termasuk brown bila include_brown=True) + EROSI TEPI
+    # Mask daun + erosi tepi
     if mask_bg:
         if include_brown:
             m = _leaf_mask_hsv_with_brown(pil_img)
@@ -377,14 +300,13 @@ def gradcam_on_pil(
             m = (green | yellow).astype(np.float32)
         if erode_border:
             m = _erode_min(m, k=3, iters=1)
-        m_t = torch.tensor(m, dtype=cam_up.dtype, device=cam_up.device)
-        cam_up = cam_up * m_t
+        cam_up = cam_up * torch.tensor(m, dtype=cam_up.dtype, device=cam_up.device)
 
-    # Lesion prior (boost nekrosis/bintik cokelat)
+    # Lesion prior
     if lesion_boost:
-        prior = _lesion_prior_brown(pil_img)                             # numpy 0..1
-        prior_t = torch.tensor(prior, dtype=cam_up.dtype, device=cam_up.device)
-        cam_up = cam_up * (1.0 + float(lesion_weight) * prior_t)
+        prior = _lesion_prior_brown(pil_img)
+        cam_up = cam_up * (1.0 + float(lesion_weight) *
+                           torch.tensor(prior, dtype=cam_up.dtype, device=cam_up.device))
 
     cam_up = _normalize_cam(cam_up).cpu().numpy()
     overlay = _overlay(pil_img, cam_up, alpha=alpha)
@@ -404,15 +326,14 @@ def show_prediction_and_cam(
     blend_with_res2: bool = False,
     erode_border: bool = True
 ):
-    # Prediksi (RAW, tanpa clipping)
+    # Prediksi RAW (tanpa clipping)
     with torch.no_grad():
         x = transform(pil_img).unsqueeze(0)
         out = model(x)
         probs_raw = torch.softmax(out[0], dim=0).cpu().numpy()
         used_idx = int(np.argmax(probs_raw))
-    pred_label = CLASS_NAMES[used_idx]
 
-    # Grad-CAM
+    # Grad-CAM untuk kelas teratas
     overlay, cam, _, _, _ = gradcam_on_pil(
         model, pil_img,
         target_layer_name=target_layer_name,
@@ -426,16 +347,4 @@ def show_prediction_and_cam(
         erode_border=erode_border
     )
 
-    # Render (jika di Streamlit) — default tampilkan RAW; opsi display di prediksi.py
-    try:
-        col1, col2 = st.columns([1,1])
-        with col1:
-            st.image(pil_img, caption="Input", use_container_width=True)
-            st.write(f"**Prediksi**: {pred_label}")
-        with col2:
-            st.image(overlay, caption=f"Grad-CAM ({target_layer_name}) → {pred_label}", use_container_width=True)
-    except Exception:
-        pass
-
-    # Kembalikan probs_raw agar display bisa diatur di file Streamlit
     return overlay, cam, used_idx, probs_raw
