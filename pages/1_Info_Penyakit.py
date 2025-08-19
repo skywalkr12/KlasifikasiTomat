@@ -66,7 +66,8 @@ for name, data in diseases.items():
     st.markdown("---")
 
 st.write("""
-Catatan: Ini adalah alat diagnosis dengan bantuan Kecerdasan Buatan dan sebaiknya digunakan hanya sebagai panduan. Untuk diagnosis yang konklusif, konsultasikan dengan ahli patologi tanaman profesional.
+Sebagai Catatan: Ini adalah alat diagnosis dengan bantuan Kecerdasan Buatan dan sebaiknya digunakan hanya sebagai panduan.
+Untuk diagnosis konklusif, konsultasikan dengan ahli patologi tanaman profesional.
 """)
 
 st.markdown("---")
@@ -78,4 +79,5 @@ st.markdown("""
 <a href="https://www.facebook.com/skywalkr12" target="blank_">Facebook</a>
 </div>
 """, unsafe_allow_html=True)
+
 
