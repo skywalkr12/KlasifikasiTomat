@@ -101,9 +101,9 @@ CLASS_NAMES = [
  'Tomato_Leaf_Mold',
  'Tomato_Septoria_leaf_spot',
  'Tomato_Spider_mites_Two_spotted_spider_mite',
- 'Tomato__Target_Spot',
- 'Tomato__Tomato_YellowLeaf__Curl_Virus',
- 'Tomato__Tomato_mosaic_virus',
+ 'Tomato_Target_Spot',
+ 'Tomato_Tomato_YellowLeaf__Curl_Virus',
+ 'Tomato_Tomato_mosaic_virus',
  'Tomato_healthy'
 ]
 
@@ -126,7 +126,7 @@ def _disable_inplace_relu(model: nn.Module):
 @st.cache_resource
 def load_model(cache_bust: str = "noinplace-v5"):
     model = ResNet18(num_diseases=len(CLASS_NAMES), in_channels=3)
-    sd = torch.load("model/resnet_97_56.pt", map_location="cpu")
+    sd = torch.load("model/resnet9_97.pt", map_location="cpu")
     if isinstance(sd, dict) and "model_state_dict" in sd:
         sd = sd["model_state_dict"]
     sd = { (k.replace("module.","") if k.startswith("module.") else k): v for k,v in sd.items() }
@@ -406,3 +406,4 @@ def show_prediction_and_cam(
         pass
 
     return overlay, cam, used_idx, probs_all
+
