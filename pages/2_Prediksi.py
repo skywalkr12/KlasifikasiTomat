@@ -55,7 +55,7 @@ uploaded_file = st.file_uploader("Upload gambar daun tomat", type=["jpg", "jpeg"
 if uploaded_file:
     image = Image.open(uploaded_file).convert("RGB")
 
-    # Prediksi + Grad-CAM (dengan temperature & kontrol mask)
+    # Prediksi + Grad-CAM (mengembalikan overlay tanpa merender)
     overlay, cam, used_idx, probs_all = show_prediction_and_cam(
         model, image,
         alpha=alpha,
@@ -70,12 +70,30 @@ if uploaded_file:
         shadow_veto=shadow_veto
     )
 
+    # === INI BAGIAN YANG HILANG: tampilkan gambar ===
+    c1, c2 = st.columns([1, 1])
+    with c1:
+        st.image(image, caption="Input", use_container_width=True)
+    with c2:
+        st.image(
+            overlay,
+            caption=f"Grad-CAM ({target_layer_name}) → {CLASS_NAMES[used_idx]}",
+            use_container_width=True
+        )
+
+    # Teks prediksi
+    pred_name = CLASS_NAMES[used_idx]
+    conf_val = float(probs_all[used_idx])
+    if cap_display:
+        conf_val = min(conf_val, 0.999)  # hindari tampil 100.00% karena pembulatan
+    st.write(f"**Prediksi**: {pred_name}  \n**Confidence**: {conf_val*100:.2f}%")
+
     # Chart probabilitas lengkap
     if show_full_chart:
         st.subheader("📊 Probabilitas per Kelas")
         probs = np.array(probs_all)
         if cap_display:
-            probs = np.minimum(probs, 0.999)  # agar tidak tertulis 100.00% saat 0.9996
+            probs = np.minimum(probs, 0.999)
         idxs = np.argsort(-probs) if sort_desc else np.arange(len(CLASS_NAMES))
         fig, ax = plt.subplots()
         ax.barh([CLASS_NAMES[i] for i in idxs], probs[idxs], height=0.6)
@@ -103,13 +121,6 @@ if uploaded_file:
             shadow_veto=shadow_veto
         )
         st.image(overlay2, caption=f"Grad-CAM ({target_layer_name}) → {target_label}", use_container_width=True)
-
-    # Teks prediksi (dipotong 99.9% bila cap aktif)
-    pred_name = CLASS_NAMES[used_idx]
-    conf_val = float(probs_all[used_idx])
-    if cap_display:
-        conf_val = min(conf_val, 0.999)
-    st.write(f"**Prediksi**: {pred_name}  \n**Confidence**: {conf_val*100:.2f}%")
 
     # Simpan riwayat
     st.session_state["history"].append({
