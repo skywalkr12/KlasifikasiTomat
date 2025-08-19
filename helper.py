@@ -102,9 +102,9 @@ CLASS_NAMES = [
  'Tomato_Leaf_Mold',
  'Tomato_Septoria_leaf_spot',
  'Tomato_Spider_mites_Two_spotted_spider_mite',
- 'Tomato__Target_Spot',
- 'Tomato__Tomato_YellowLeaf__Curl_Virus',
- 'Tomato__Tomato_mosaic_virus',
+ 'Tomato_Target_Spot',
+ 'Tomato_Tomato_YellowLeaf__Curl_Virus',
+ 'Tomato_Tomato_mosaic_virus',
  'Tomato_healthy'
 ]
 
@@ -411,3 +411,4 @@ def show_prediction_and_cam(
 
     # (opsi render di Streamlit ditangani di prediksi.py)
     return overlay, cam, used_idx, probs_all
+
