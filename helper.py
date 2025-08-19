@@ -100,9 +100,9 @@ transform = transforms.Compose([
     transforms.RandomVerticalFlip(p=0.25),
     transforms.RandomRotation(degrees=12),
     transforms.ColorJitter(brightness=0.12, contrast=0.12, saturation=0.12, hue=0.075),
-    transforms.ToTensor()
+    transforms.ToTensor(),
     # Jika training pakai Normalize, aktifkan lagi di sini:
-    # transforms.Normalize(mean=[0.485,0.456,0.406], std=[0.229,0.224,0.225]),
+    transforms.Normalize(mean=[0.485,0.456,0.406], std=[0.229,0.224,0.225])
 ])
 
 # ========= Loader =========
@@ -352,6 +352,7 @@ def show_prediction_and_cam(
     )
 
     return overlay, cam, used_idx, probs_raw
+
 
 
 
