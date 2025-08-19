@@ -126,7 +126,7 @@ def _disable_inplace_relu(model: nn.Module):
 @st.cache_resource
 def load_model(cache_bust: str = "noinplace-v5"):
     model = ResNet18(num_diseases=len(CLASS_NAMES), in_channels=3)
-    sd = torch.load("model/resnet9_99(1).pt", map_location="cpu")
+    sd = torch.load("model/resnet9_97.pt", map_location="cpu")
     if isinstance(sd, dict) and "model_state_dict" in sd:
         sd = sd["model_state_dict"]
     sd = { (k.replace("module.","") if k.startswith("module.") else k): v for k,v in sd.items() }
@@ -406,6 +406,7 @@ def show_prediction_and_cam(
         pass
 
     return overlay, cam, used_idx, probs_all
+
 
 
 
