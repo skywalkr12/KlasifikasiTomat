@@ -90,7 +90,7 @@ if uploaded_file:
         "Tanggal": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "Nama File": uploaded_file.name,
         "Prediksi": CLASS_NAMES[used_idx],
-        "Probabilitas (%)": f"{float(probs_all[used_idx]) * 98:.2f}",
+        "Probabilitas (%)": f"{float(probs_all[used_idx]) * 100:.2f}",
         "Layer": target_layer_name,
         "MaskBG": mask_bg,
         "BlendRes2": blend_with_res2
@@ -117,6 +117,7 @@ st.markdown("""
 <a href="https://www.facebook.com/skywalkr12" target="blank_">Facebook</a>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
