@@ -380,7 +380,7 @@ def gradcam_on_pil(
         engine.remove()
 
     # Blend dengan res2 (4x4) jika diminta
-    if blend_with_res2 && target_layer_name != "res2":
+    if blend_with_res2 and target_layer_name != "res2":
         tl2 = get_target_layer(model, "res2")
         engine2 = GradCAMPP(model, tl2) if method.lower()=="gradcam++" \
                  else (LayerCAM(model, tl2) if method.lower()=="layercam" else GradCAM(model, tl2))
@@ -477,3 +477,4 @@ def show_prediction_and_cam(
         pass
 
     return overlay, cam, used_idx, probs_all
+
