@@ -10,7 +10,8 @@ from helper import (
     load_model,
     show_prediction_and_cam,
     gradcam_on_pil,
-    CLASS_NAMES
+    CLASS_NAMES,
+    format_probs_for_display   # <<— util baru
 )
 
 st.set_page_config(page_title="Prediksi Penyakit Tomat + Grad-CAM", layout="wide")
@@ -40,6 +41,16 @@ with st.sidebar:
     lesion_weight = st.slider("Bobot deteksi bintik (lesion prior)", 0.0, 1.0, 0.5, 0.05)
 
     st.markdown("---")
+    st.subheader("Mode Tampilan Probabilitas")
+    display_mode = st.selectbox(
+        "Pilih mode tampilan",
+        options=["raw (asli, max bisa 100%)", "temperature (sebar T>1)", "topk_renorm (visual)"],
+        index=0
+    )
+    temperature = st.slider("Temperature (T)", 1.0, 5.0, 1.8, 0.1)
+    eps = st.slider("Probabilitas minimum per kelas (ε)", 0.0, 0.01, 0.0, 0.001,
+                    help="Opsional untuk menghindari 0 murni. Di-normalisasi ulang otomatis.")
+
     show_full_chart = st.checkbox("Tampilkan chart probabilitas lengkap", True)
     sort_desc = st.checkbox("Urutkan chart menurun", True)
 
@@ -52,8 +63,8 @@ uploaded_file = st.file_uploader("Upload gambar daun tomat", type=["jpg", "jpeg"
 if uploaded_file:
     image = Image.open(uploaded_file).convert("RGB")
 
-    # Prediksi + Grad-CAM (probabilitas tampilan max 97% diset di helper)
-    overlay, cam, used_idx, probs_all = show_prediction_and_cam(
+    # Prediksi + Grad-CAM (kini probs_raw dikembalikan tanpa pemotongan)
+    overlay, cam, used_idx, probs_raw = show_prediction_and_cam(
         model, image,
         alpha=alpha,
         topk=topk,
@@ -65,10 +76,36 @@ if uploaded_file:
         erode_border=erode_border
     )
 
-    # Chart probabilitas lengkap (pakai probs_all yang sudah dibatasi 97% di helper)
+    # Tentukan mode display
+    mode_key = display_mode.split()[0]  # "raw" | "temperature" | "topk_renorm"
+    probs_disp = format_probs_for_display(
+        probs_raw,
+        mode="raw" if mode_key == "raw" else ("temperature" if mode_key == "temperature" else "topk_renorm"),
+        temperature=temperature,
+        eps=eps,
+        topk=topk
+    )
+
+    # Panel kiri-kanan (tambahkan info confidence & alternatif)
+    col1, col2 = st.columns([1,1])
+    with col1:
+        st.image(image, caption="Input", use_container_width=True)
+        st.write(f"**Prediksi**: {CLASS_NAMES[used_idx]}  \n**Confidence (display)**: {float(probs_disp[used_idx]):.2%}")
+        # Urutan alternatif selalu dari probabilitas mentah (keputusan model)
+        topk_ = min(topk, len(CLASS_NAMES))
+        order = np.argsort(-probs_raw)[:topk_]
+        st.markdown("**Alternatif (Top-k)**")
+        st.markdown("\n".join([
+            f"{'★' if i==used_idx else '•'} {CLASS_NAMES[i]}: {probs_disp[i]:.2%} (raw: {probs_raw[i]:.2%})"
+            for i in order
+        ]))
+    with col2:
+        st.image(overlay, caption=f"Grad-CAM ({target_layer_name}) → {CLASS_NAMES[used_idx]}", use_container_width=True)
+
+    # Chart probabilitas lengkap
     if show_full_chart:
         st.subheader("📊 Probabilitas per Kelas")
-        probs = np.array(probs_all)
+        probs = np.array(probs_disp)
         idxs = np.argsort(-probs) if sort_desc else np.arange(len(CLASS_NAMES))
         fig, ax = plt.subplots()
         ax.barh([CLASS_NAMES[i] for i in idxs], probs[idxs], height=0.6)
@@ -95,18 +132,21 @@ if uploaded_file:
         )
         st.image(overlay2, caption=f"Grad-CAM ({target_layer_name}) → {target_label}", use_container_width=True)
 
-    # Simpan riwayat
+    # Simpan riwayat (pakai display prob agar konsisten dengan UI)
     st.session_state["history"].append({
         "Tanggal": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "Nama File": uploaded_file.name,
         "Prediksi": CLASS_NAMES[used_idx],
-        "Probabilitas (%)": f"{float(probs_all[used_idx]) * 100:.2f}",
+        "Probabilitas (%)": f"{float(probs_disp[used_idx]) * 100:.2f}",
         "Layer": target_layer_name,
         "MaskBG": mask_bg,
         "BlendRes2": blend_with_res2,
         "ErodeBorder": erode_border,
         "LesionBoost": lesion_boost,
-        "LesionWeight": lesion_weight
+        "LesionWeight": lesion_weight,
+        "ModeDisplay": mode_key,
+        "Temperature": temperature,
+        "Eps": eps
     })
 
 # Riwayat + unduh
@@ -131,5 +171,3 @@ st.markdown("""
 <a href="https://www.facebook.com/skywalkr12" target="blank_">Facebook</a>
 </div>
 """, unsafe_allow_html=True)
-
-
