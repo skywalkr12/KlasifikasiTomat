@@ -87,9 +87,9 @@ CLASS_NAMES = [
  'Tomato_Leaf_Mold',
  'Tomato_Septoria_leaf_spot',
  'Tomato_Spider_mites_Two_spotted_spider_mite',
- 'Tomato__Target_Spot',
- 'Tomato__Tomato_YellowLeaf__Curl_Virus',
- 'Tomato__Tomato_mosaic_virus',
+ 'Tomato_Target_Spot',
+ 'Tomato_Tomato_YellowLeaf__Curl_Virus',
+ 'Tomato_Tomato_mosaic_virus',
  'Tomato_healthy'
 ]
 
@@ -100,8 +100,7 @@ transform = transforms.Compose([
     transforms.RandomVerticalFlip(p=0.5),
     transforms.RandomRotation(degrees=30),
     transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485,0.456,0.406], std=[0.229,0.224,0.225])
+    transforms.ToTensor()
 ])
 
 # ========= Loader =========
@@ -351,6 +350,7 @@ def show_prediction_and_cam(
     )
 
     return overlay, cam, used_idx, probs_raw
+
 
 
 
