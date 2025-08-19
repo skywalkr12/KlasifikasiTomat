@@ -95,8 +95,8 @@ CLASS_NAMES = [
 
 # ========= Transform (samakan dengan training!) =========
 transform = transforms.Compose([
-    transforms.Resize((256, 256))
-    
+    transforms.Resize((256, 256)),
+    transforms.ToTensor()
 ])
 
 # ========= Loader =========
@@ -346,6 +346,7 @@ def show_prediction_and_cam(
     )
 
     return overlay, cam, used_idx, probs_raw
+
 
 
 
