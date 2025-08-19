@@ -61,7 +61,7 @@ uploaded_file = st.file_uploader("Upload gambar daun tomat", type=["jpg", "jpeg"
 if uploaded_file:
     image = Image.open(uploaded_file).convert("RGB")
 
-    # Prediksi + Grad-CAM
+    # Prediksi + Grad-CAM (helper TIDAK merender apa pun)
     overlay, cam, used_idx, probs_raw = show_prediction_and_cam(
         model, image,
         alpha=alpha,
@@ -74,15 +74,19 @@ if uploaded_file:
         erode_border=erode_border
     )
 
-    # === HANYA SATU GAMBAR UTAMA: OVERLAY GRAD-CAM ===
-    st.image(
-        overlay,
-        caption=f"Prediksi: {CLASS_NAMES[used_idx]} — Confidence: {fmt_pct(probs_raw[used_idx])}",
-        use_container_width=True
-    )
-    st.caption("Catatan: Probabilitas ditampilkan dengan batas maksimum 99.99% untuk menghindari ‘100%’ di UI.")
+    # === DUA PANEL: KIRI INPUT, KANAN GRAD-CAM ===
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        st.image(image, caption="Input", use_container_width=True)
+    with col2:
+        st.image(
+            overlay,
+            caption=f"Grad-CAM ({target_layer_name}) → {CLASS_NAMES[used_idx]} • Confidence: {fmt_pct(probs_raw[used_idx])}",
+            use_container_width=True
+        )
+    st.caption("---")
 
-    # Alternatif (Top-k) — tidak menambah gambar
+    # Alternatif (Top-k) — teks saja (tidak menambah gambar utama)
     topk_ = min(topk, len(CLASS_NAMES))
     order = np.argsort(-probs_raw)[:topk_]
     st.markdown("**Alternatif (Top-k)**")
@@ -91,7 +95,7 @@ if uploaded_file:
         for i in order
     ]))
 
-    # Chart probabilitas lengkap (tetap satu grafik)
+    # Chart probabilitas lengkap (opsional)
     if show_full_chart:
         st.subheader("📊 Probabilitas per Kelas")
         probs_plot = np.minimum(np.array(probs_raw, dtype=float), DISPLAY_CAP)
@@ -104,7 +108,7 @@ if uploaded_file:
         ax.set_ylabel("Kelas")
         st.pyplot(fig)
 
-    # Grad-CAM untuk kelas lain (opsional, di dalam expander)
+    # Grad-CAM untuk kelas lain (opsional, di expander)
     with st.expander("🎯 Lihat Grad-CAM untuk kelas tertentu"):
         target_label = st.selectbox("Pilih kelas", CLASS_NAMES, index=used_idx)
         target_idx = CLASS_NAMES.index(target_label)
@@ -121,9 +125,7 @@ if uploaded_file:
         )
         st.image(overlay2, caption=f"Grad-CAM ({target_layer_name}) → {target_label}", use_container_width=True)
 
-    # Riwayat (simpan angka tampilan)
-    if "history" not in st.session_state:
-        st.session_state["history"] = []
+    # Histori (simpan angka tampilan)
     st.session_state["history"].append({
         "Tanggal": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "Nama File": uploaded_file.name,
@@ -138,7 +140,7 @@ if uploaded_file:
     })
 
 # Riwayat + unduh
-if st.session_state.get("history"):
+if st.session_state["history"]:
     st.subheader("📜 Histori Prediksi")
     df = pd.DataFrame(st.session_state["history"])
     st.dataframe(df, use_container_width=True)
