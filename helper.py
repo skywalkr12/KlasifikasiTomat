@@ -395,7 +395,7 @@ def show_prediction_and_cam(
         col1, col2 = st.columns([1,1])
         with col1:
             st.image(pil_img, caption="Input", use_container_width=True)
-            st.write(f"**Prediksi**: {pred_label}  \n**Confidence**: {float(probs_all[used_idx]):.2%}") probs_all[used_idx]) * 98:.2f
+            st.write(f"**Prediksi**: {pred_label}  \n**Confidence**: {float(probs_all[used_idx]):.2%}")
             topk_ = min(topk, len(CLASS_NAMES))
             order = np.argsort(-probs_all)[:topk_]
             st.markdown("**Alternatif (Top-k)**")
@@ -406,5 +406,6 @@ def show_prediction_and_cam(
         pass
 
     return overlay, cam, used_idx, probs_all
+
 
 
