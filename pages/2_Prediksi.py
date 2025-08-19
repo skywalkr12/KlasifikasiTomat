@@ -14,7 +14,7 @@ from helper import (
 )
 
 st.set_page_config(page_title="Prediksi Penyakit Tomat + Grad-CAM", layout="wide")
-st.title("🔍 Prediksi Penyakit Tomat + Grad-CAM (aman)")
+st.title("🔍 Prediksi Penyakit Tomat + Fitur Grad-CAM")
 
 if "history" not in st.session_state:
     st.session_state["history"] = []
@@ -118,8 +118,8 @@ if st.session_state["history"]:
     st.download_button("⬇️ Download CSV", csv, "histori_prediksi.csv", "text/csv")
 
 st.write("""
-Catatan: Ini adalah alat diagnosis berbantuan AI dan sebaiknya digunakan sebagai panduan.
-Untuk diagnosis konklusif, konsultasikan dengan ahli patologi tanaman.
+Sebagai Catatan: Ini adalah alat diagnosis dengan bantuan Kecerdasan Buatan dan sebaiknya digunakan hanya sebagai panduan.
+Untuk diagnosis konklusif, konsultasikan dengan ahli patologi tanaman profesional.
 """)
 
 st.markdown("---")
@@ -131,3 +131,4 @@ st.markdown("""
 <a href="https://www.facebook.com/skywalkr12" target="blank_">Facebook</a>
 </div>
 """, unsafe_allow_html=True)
+
