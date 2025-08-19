@@ -67,7 +67,7 @@ if uploaded_file:
 
     # Chart probabilitas lengkap (pakai probs_all yang sudah dibatasi 97% di helper)
     if show_full_chart:
-        st.subheader("📊 Probabilitas per Kelas (maks 97%)")
+        st.subheader("📊 Probabilitas per Kelas")
         probs = np.array(probs_all)
         idxs = np.argsort(-probs) if sort_desc else np.arange(len(CLASS_NAMES))
         fig, ax = plt.subplots()
@@ -131,4 +131,5 @@ st.markdown("""
 <a href="https://www.facebook.com/skywalkr12" target="blank_">Facebook</a>
 </div>
 """, unsafe_allow_html=True)
+
 
