@@ -96,6 +96,10 @@ CLASS_NAMES = [
 # ========= Transform (samakan dengan training!) =========
 transform = transforms.Compose([
     transforms.Resize((256, 256)),
+    transforms.RandomHorizontalFlip(p=0.5),
+    transforms.RandomVerticalFlip(p=0.5),
+    transforms.RandomRotation(degrees=30),
+    transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),
     transforms.ToTensor()
     # Jika training pakai Normalize, aktifkan lagi di sini:
     # transforms.Normalize(mean=[0.485,0.456,0.406], std=[0.229,0.224,0.225]),
@@ -348,3 +352,4 @@ def show_prediction_and_cam(
     )
 
     return overlay, cam, used_idx, probs_raw
+
