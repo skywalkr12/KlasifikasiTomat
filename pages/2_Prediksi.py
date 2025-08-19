@@ -26,35 +26,16 @@ with st.sidebar:
         options=["conv4_prepool", "conv3_prepool", "conv2_prepool", "res2"],
         index=0
     )
-    method = st.selectbox(
-        "Metode CAM",
-        options=["Grad-CAM", "Grad-CAM++", "Layer-CAM"],
-        index=0
-    )
     alpha = st.slider("Transparansi Heatmap (α)", 0.0, 1.0, 0.45, 0.05)
     topk  = st.slider("Jumlah alternatif (Top-k)", 1, min(5, len(CLASS_NAMES)), 3, 1)
-
     mask_bg = st.checkbox("Mask background (fokus ke daun)", True)
-    include_brown = st.checkbox("Perluas mask ke warna cokelat/oranye gelap", True)
-    erode_border = st.checkbox("Erosi tepi mask 1px (kurangi dominasi pinggiran)", True)
-
-    st.markdown("---")
-    lesion_boost = st.checkbox("Aktifkan lesion prior (brownness+darkness)", True)
-    lesion_weight = st.slider("Bobot lesion prior", 0.0, 1.0, 0.5, 0.05)
-
-    st.markdown("---")
     blend_with_res2 = st.checkbox("Blend dengan res2 (stabilkan semantik)", True)
-
-    st.markdown("---")
-    # >>> Kalibrasi tampilan probabilitas (hindari 100%)
-    temperature = st.slider("Temperatur tampilan (kalibrasi, T)", 1.0, 5.0, 1.5, 0.1)
-    # eps tetap kecil dan tidak ditampilkan agar UI sederhana
 
     st.markdown("---")
     show_full_chart = st.checkbox("Tampilkan chart probabilitas lengkap", True)
     sort_desc = st.checkbox("Urutkan chart menurun", True)
 
-# ----- Model -----
+# ----- Model (pakai cache-bust agar benar-benar reload) -----
 model = load_model(cache_bust="noinplace-v3")
 
 # ----- Uploader -----
@@ -63,24 +44,24 @@ uploaded_file = st.file_uploader("Upload gambar daun tomat", type=["jpg", "jpeg"
 if uploaded_file:
     image = Image.open(uploaded_file).convert("RGB")
 
-    # Prediksi + Grad-CAM
+    # Prediksi + Grad-CAM (probabilitas dipotong max 0.97)
     overlay, cam, used_idx, probs_all = show_prediction_and_cam(
         model, image,
         alpha=alpha,
         topk=topk,
         target_layer_name=target_layer_name,
-        include_brown=include_brown,
-        lesion_boost=lesion_boost, lesion_weight=lesion_weight,
+        include_brown=True,
+        lesion_boost=True, lesion_weight=0.5,
         mask_bg=mask_bg,
         blend_with_res2=blend_with_res2,
-        method=method.lower(),
-        erode_border=erode_border,
-        temperature=temperature    # <<< kalibrasi tampilan
+        method="gradcam",
+        erode_border=True,     # tetap berguna agar tepi daun tidak mendominasi
+        max_prob=0.97          # <<< batas 97%
     )
 
-    # Chart probabilitas lengkap
+    # Chart probabilitas lengkap (pakai probs_all yang sudah dipotong)
     if show_full_chart:
-        st.subheader("📊 Probabilitas per Kelas")
+        st.subheader("📊 Probabilitas per Kelas (maks 97%)")
         probs = np.array(probs_all)
         idxs = np.argsort(-probs) if sort_desc else np.arange(len(CLASS_NAMES))
         fig, ax = plt.subplots()
@@ -91,23 +72,23 @@ if uploaded_file:
         ax.set_ylabel("Kelas")
         st.pyplot(fig)
 
-    # Grad-CAM untuk kelas lain (opsional)
-    with st.expander("🎯 Lihat CAM untuk kelas tertentu"):
+    # Grad-CAM untuk kelas lain (opsional — tetap Grad-CAM)
+    with st.expander("🎯 Lihat Grad-CAM untuk kelas tertentu"):
         target_label = st.selectbox("Pilih kelas", CLASS_NAMES, index=used_idx)
         target_idx = CLASS_NAMES.index(target_label)
         overlay2, _, _, _, _ = gradcam_on_pil(
             model, image,
             target_layer_name=target_layer_name,
-            include_brown=include_brown,
-            lesion_boost=lesion_boost, lesion_weight=lesion_weight,
+            include_brown=True,
+            lesion_boost=True, lesion_weight=0.5,
             class_idx=target_idx,
             alpha=alpha,
             mask_bg=mask_bg,
             blend_with_res2=blend_with_res2,
-            method=method.lower(),
-            erode_border=erode_border
+            method="gradcam",
+            erode_border=True
         )
-        st.image(overlay2, caption=f"{method.upper()} ({target_layer_name}) → {target_label}", use_container_width=True)
+        st.image(overlay2, caption=f"Grad-CAM ({target_layer_name}) → {target_label}", use_container_width=True)
 
     # Simpan riwayat
     st.session_state["history"].append({
@@ -115,15 +96,9 @@ if uploaded_file:
         "Nama File": uploaded_file.name,
         "Prediksi": CLASS_NAMES[used_idx],
         "Probabilitas (%)": f"{float(probs_all[used_idx]) * 100:.2f}",
-        "Method": method,
         "Layer": target_layer_name,
         "MaskBG": mask_bg,
-        "IncludeBrown": include_brown,
-        "ErodeBorder": erode_border,
-        "LesionBoost": lesion_boost,
-        "LesionWeight": lesion_weight,
-        "BlendRes2": blend_with_res2,
-        "Temperature": temperature
+        "BlendRes2": blend_with_res2
     })
 
 # Riwayat + unduh
@@ -135,8 +110,8 @@ if st.session_state["history"]:
     st.download_button("⬇️ Download CSV", csv, "histori_prediksi.csv", "text/csv")
 
 st.write("""
-Catatan: Ini adalah alat diagnosis dengan bantuan Kecerdasan Buatan dan sebaiknya digunakan hanya sebagai panduan. 
-Untuk diagnosis yang konklusif, konsultasikan dengan ahli patologi tanaman profesional.
+Catatan: Ini adalah alat diagnosis berbantuan AI. Gunakan sebagai panduan,
+keputusan final sebaiknya oleh ahli patologi tanaman.
 """)
 
 st.markdown("---")
