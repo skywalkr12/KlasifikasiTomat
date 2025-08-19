@@ -96,13 +96,17 @@ CLASS_NAMES = [
 # ========= Transform (samakan dengan training!) =========
 transform = transforms.Compose([
     transforms.Resize((256, 256)),
+    transforms.RandomHorizontalFlip(p=0.5),
+    transforms.RandomVerticalFlip(p=0.5),
+    transforms.RandomRotation(degrees=30),
+    transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1)
     transforms.ToTensor()
 ])
 
 # ========= Loader =========
 def load_model(cache_bust: str = "noinplace-v5"):
     model = ResNet18(num_diseases=len(CLASS_NAMES), in_channels=3)
-    sd = torch.load("model/resnet9_97.pt", map_location="cpu")
+    sd = torch.load("model/resnet9_99(1).pt", map_location="cpu")
     if isinstance(sd, dict) and "model_state_dict" in sd:
         sd = sd["model_state_dict"]
     sd = { (k.replace("module.","") if k.startswith("module.") else k): v for k,v in sd.items() }
@@ -346,6 +350,7 @@ def show_prediction_and_cam(
     )
 
     return overlay, cam, used_idx, probs_raw
+
 
 
 
