@@ -17,7 +17,8 @@ Gunakan menu di sidebar untuk membaca informasi penyakit dan memprediksi penyaki
 st.image("images/tomato_banner.jpg", use_container_width=True)
 
 st.write("""
-Catatan: Ini adalah alat diagnosis dengan bantuan Kecerdasan Buatan dan sebaiknya digunakan hanya sebagai panduan. Untuk diagnosis yang konklusif, konsultasikan dengan ahli patologi tanaman profesional.
+Sebagai Catatan: Ini adalah alat diagnosis dengan bantuan Kecerdasan Buatan dan sebaiknya digunakan hanya sebagai panduan.
+Untuk diagnosis konklusif, konsultasikan dengan ahli patologi tanaman profesional.
 """)
 
 # Footer
@@ -31,4 +32,5 @@ st.markdown("""
 <a href="https://www.facebook.com/skywalkr12" target="blank_">Facebook</a>
 </div>
 """, unsafe_allow_html=True)
+
 
