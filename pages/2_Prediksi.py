@@ -13,8 +13,8 @@ from helper import (
     CLASS_NAMES
 )
 
-st.set_page_config(page_title="Prediksi Penyakit Tomat + Grad-CAM", layout="wide")
-st.title("🔍 Prediksi Penyakit Tomat + Grad-CAM (aman)")
+st.set_page_config(page_title="Prediksi Penyakit Tomat & Fitur Grad-CAM", layout="wide")
+st.title("🔍 Prediksi Penyakit Tomat & Fitur Grad-CAM")
 
 if "history" not in st.session_state:
     st.session_state["history"] = []
@@ -117,4 +117,5 @@ st.markdown("""
 <a href="https://www.facebook.com/skywalkr12" target="blank_">Facebook</a>
 </div>
 """, unsafe_allow_html=True)
+
 
