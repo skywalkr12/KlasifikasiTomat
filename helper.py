@@ -1,10 +1,6 @@
 # helper.py
 # — ResNet9-variant + Grad-CAM + Leaf&Brown Mask + Lesion Prior —
-# Catatan:
-# - Grad-CAM standar dipakai.
-# - Lesion prior (brownness + darkness) untuk menonjolkan bintik/nekrosis.
-# - Leaf mask (hijau+kuning+cokelat) + opsi erosi tepi 1px untuk menekan dominasi border.
-# - Probabilitas tampilan dipotong max 0.97 (hanya untuk UI).
+# Tampilan probabilitas TIDAK dipotong lagi; sediakan util format_probs_for_display untuk visual.
 
 import torch, numpy as np
 import torch.nn as nn
@@ -111,7 +107,7 @@ CLASS_NAMES = [
 transform = transforms.Compose([
     transforms.Resize((256, 256)),
     transforms.ToTensor()
-    # Jika training pakai Normalize, aktifkan lagi di sini:
+    # Bila training pakai Normalize, aktifkan lagi di sini:
     # transforms.Normalize(mean=[0.485,0.456,0.406], std=[0.229,0.224,0.225]),
 ])
 
@@ -135,15 +131,59 @@ def load_model(cache_bust: str = "noinplace-v5"):
     model.eval()
     return model
 
-# ========= Prediksi (batasi tampilan ke 97%) =========
+# ========= Prediksi (SEKARANG TANPA PEMOTONGAN) =========
 @torch.no_grad()
 def predict_image(model, image):
     x = transform(image).unsqueeze(0)
     out = model(x)
-    probs = torch.softmax(out[0], dim=0).cpu().numpy()
-    idx = int(np.argmax(probs))                 # keputusan kelas dari probs asli
-    probs = np.clip(probs, 0.0, 0.97)           # batasi tampilan (UI) max 97%
-    return CLASS_NAMES[idx], probs
+    probs_raw = torch.softmax(out[0], dim=0).cpu().numpy()  # sum=1
+    idx = int(np.argmax(probs_raw))
+    return CLASS_NAMES[idx], probs_raw, out[0].detach().cpu().numpy()
+
+# ========= Util tampilan probabilitas =========
+def format_probs_for_display(
+    probs_raw: np.ndarray,
+    mode: str = "raw",             # "raw" | "temperature" | "topk_renorm"
+    temperature: float = 1.0,      # >1 = lebih menyebar
+    eps: float = 0.0,              # floor min untuk tiap kelas (visual smoothing)
+    topk: int | None = None        # untuk mode topk_renorm
+) -> np.ndarray:
+    p = probs_raw.astype(np.float64).copy()
+    K = p.size
+
+    if mode == "temperature":
+        # Softmax temperature approx tanpa logits: p^(1/T) lalu renorm
+        T = max(1e-6, float(temperature))
+        p = np.power(p, 1.0 / T)
+        s = p.sum()
+        p = p / s if s > 0 else np.full_like(p, 1.0 / K)
+
+    elif mode == "topk_renorm":
+        if topk is None or topk < 1:
+            return p  # fallback
+        order = np.argsort(-p)[:topk]
+        p_top = p[order]
+        denom = p_top.sum()
+        p_vis = np.zeros_like(p)
+        if denom > 0:
+            p_vis[order] = p_top / denom
+        else:
+            p_vis[order] = 1.0 / topk
+        p = p_vis
+
+    else:
+        # "raw": tidak diapa-apakan
+        pass
+
+    # Tambahkan floor eps untuk menghindari 0 murni pada kelas kecil (opsional)
+    if eps > 0.0:
+        eps = float(eps)
+        p = (1.0 - K * eps) * p + eps
+        p = np.clip(p, 0.0, 1.0)
+        s = p.sum()
+        p = p / s if s > 0 else np.full_like(p, 1.0 / K)
+
+    return p
 
 # ========= CAM util =========
 def _normalize_cam(cam: torch.Tensor):
@@ -298,7 +338,7 @@ def gradcam_on_pil(
     lesion_boost: bool = True,
     lesion_weight: float = 0.5,
     blend_with_res2: bool = False,
-    erode_border: bool = True      # <<— dipulihkan, default True agar tepi teredam
+    erode_border: bool = True
 ):
     x = transform(pil_img).unsqueeze(0)
 
@@ -336,7 +376,7 @@ def gradcam_on_pil(
             yellow = (Hh>=35) & (Hh<=59)  & (Ss>=60) & (Vv>=50)
             m = (green | yellow).astype(np.float32)
         if erode_border:
-            m = _erode_min(m, k=3, iters=1)  # <<< inilah yang menekan dominasi tepi
+            m = _erode_min(m, k=3, iters=1)
         m_t = torch.tensor(m, dtype=cam_up.dtype, device=cam_up.device)
         cam_up = cam_up * m_t
 
@@ -364,13 +404,12 @@ def show_prediction_and_cam(
     blend_with_res2: bool = False,
     erode_border: bool = True
 ):
-    # Prediksi
+    # Prediksi (RAW, tanpa clipping)
     with torch.no_grad():
         x = transform(pil_img).unsqueeze(0)
         out = model(x)
         probs_raw = torch.softmax(out[0], dim=0).cpu().numpy()
-        used_idx = int(np.argmax(probs_raw))           # ranking dari nilai asli
-        probs_all = np.clip(probs_raw, 0.0, 0.97)      # tampilan dipotong 97%
+        used_idx = int(np.argmax(probs_raw))
     pred_label = CLASS_NAMES[used_idx]
 
     # Grad-CAM
@@ -387,20 +426,16 @@ def show_prediction_and_cam(
         erode_border=erode_border
     )
 
-    # Render (jika di Streamlit)
+    # Render (jika di Streamlit) — default tampilkan RAW; opsi display di prediksi.py
     try:
         col1, col2 = st.columns([1,1])
         with col1:
             st.image(pil_img, caption="Input", use_container_width=True)
-            st.write(f"**Prediksi**: {pred_label}  \n**Confidence**: {float(probs_all[used_idx]):.2%}")
-            topk_ = min(topk, len(CLASS_NAMES))
-            order = np.argsort(-probs_raw)[:topk_]  # urutan tetap dari nilai asli
-            st.markdown("**Alternatif (Top-k)**")
-            st.markdown("\n".join([f"{'★' if i==used_idx else '•'} {CLASS_NAMES[i]}: {probs_all[i]:.2%}" for i in order]))
+            st.write(f"**Prediksi**: {pred_label}")
         with col2:
             st.image(overlay, caption=f"Grad-CAM ({target_layer_name}) → {pred_label}", use_container_width=True)
     except Exception:
         pass
 
-    return overlay, cam, used_idx, probs_all
-
+    # Kembalikan probs_raw agar display bisa diatur di file Streamlit
+    return overlay, cam, used_idx, probs_raw
