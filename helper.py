@@ -1,5 +1,10 @@
 # helper.py
 # — ResNet9-variant + Grad-CAM + Leaf&Brown Mask + Lesion Prior —
+# Catatan:
+# - Grad-CAM standar dipakai.
+# - Lesion prior (brownness + darkness) untuk menonjolkan bintik/nekrosis.
+# - Leaf mask (hijau+kuning+cokelat) + opsi erosi tepi 1px untuk menekan dominasi border.
+# - Probabilitas tampilan dipotong max 0.97 (hanya untuk UI).
 
 import torch, numpy as np
 import torch.nn as nn
@@ -136,8 +141,8 @@ def predict_image(model, image):
     x = transform(image).unsqueeze(0)
     out = model(x)
     probs = torch.softmax(out[0], dim=0).cpu().numpy()
-    idx = int(np.argmax(probs))  # keputusan kelas dari probs asli
-    probs = np.clip(probs, 0.0, 0.97)  # batasi tampilan
+    idx = int(np.argmax(probs))                 # keputusan kelas dari probs asli
+    probs = np.clip(probs, 0.0, 0.97)           # batasi tampilan (UI) max 97%
     return CLASS_NAMES[idx], probs
 
 # ========= CAM util =========
@@ -181,17 +186,22 @@ def _erode_min(mask: np.ndarray, k: int = 3, iters: int = 1) -> np.ndarray:
 
 # ========= Mask daun (Green+Yellow+Brown) =========
 def _leaf_mask_hsv_with_brown(pil_img: Image.Image) -> np.ndarray:
+    """
+    HSV 0..255:
+      hijau:   H∈[60,130], S≥60, V≥40
+      kuning:  H∈[35,59],  S≥60, V≥50
+      cokelat: H∈[8,35],   S≥50, V∈[20,200]
+      cokelat gelap: H≤8,  S≥60, V∈[10,180]
+    """
     hsv = np.asarray(pil_img.convert("HSV")).astype(np.int32)
     H, S, V = hsv[...,0], hsv[...,1], hsv[...,2]
-
     green  = (H>=60) & (H<=130) & (S>=60) & (V>=40)
     yellow = (H>=35) & (H<=59)  & (S>=60) & (V>=50)
     brown1 = (H>=8)  & (H<=35)  & (S>=50) & (V>=20) & (V<=200)
     brown2 = (H<=8)  & (S>=60)  & (V>=10) & (V<=180)
-
     mask = (green | yellow | brown1 | brown2).astype(np.float32)
 
-    # box blur 3x3 agar halus
+    # halus tipis (box 3x3)
     if mask.sum() > 0:
         k = 3; pad = k // 2
         padded = np.pad(mask, ((pad,pad),(pad,pad)), mode="edge")
@@ -227,13 +237,6 @@ def _resize_like(cam_src: torch.Tensor, cam_ref: torch.Tensor) -> torch.Tensor:
 
 # ========= Target layer Grad-CAM =========
 def get_target_layer(model: nn.Module, name: str):
-    """
-    Hook ke BatchNorm (pre-pool) agar aman:
-      - "conv4_prepool" -> model.conv4[1] (BN), ~16x16
-      - "conv3_prepool" -> model.conv3[1] (BN), ~64x64
-      - "conv2_prepool" -> model.conv2[1] (BN), ~256x256 (berat)
-      - "res2"          -> output block 4x4 (sangat semantik)
-    """
     if name == "res2":
         return model.res2
     if name == "conv4_prepool":
@@ -244,6 +247,7 @@ def get_target_layer(model: nn.Module, name: str):
         return model.conv2[1]
     raise ValueError(f"target_layer tidak dikenal: {name}")
 
+# ========= Grad-CAM standar =========
 class GradCAM:
     def __init__(self, model: nn.Module, target_layer: nn.Module):
         self.model = model.eval()
@@ -286,7 +290,7 @@ class GradCAM:
 def gradcam_on_pil(
     model: nn.Module,
     pil_img: Image.Image,
-    target_layer_name: str = "conv3_prepool",  # 64x64 untuk detail lesi lebih tajam
+    target_layer_name: str = "conv3_prepool",
     class_idx: int | None = None,
     alpha: float = 0.45,
     mask_bg: bool = True,
@@ -294,6 +298,7 @@ def gradcam_on_pil(
     lesion_boost: bool = True,
     lesion_weight: float = 0.5,
     blend_with_res2: bool = False,
+    erode_border: bool = True      # <<— dipulihkan, default True agar tepi teredam
 ):
     x = transform(pil_img).unsqueeze(0)
 
@@ -320,7 +325,7 @@ def gradcam_on_pil(
     H, W = pil_img.size[1], pil_img.size[0]
     cam_up = _upsample_cam(cam, (H, W))                                 # torch (H,W)
 
-    # Mask daun (termasuk brown bila include_brown=True)
+    # Mask daun (termasuk brown bila include_brown=True) + EROSI TEPI
     if mask_bg:
         if include_brown:
             m = _leaf_mask_hsv_with_brown(pil_img)
@@ -330,10 +335,12 @@ def gradcam_on_pil(
             green  = (Hh>=60) & (Hh<=130) & (Ss>=60) & (Vv>=40)
             yellow = (Hh>=35) & (Hh<=59)  & (Ss>=60) & (Vv>=50)
             m = (green | yellow).astype(np.float32)
+        if erode_border:
+            m = _erode_min(m, k=3, iters=1)  # <<< inilah yang menekan dominasi tepi
         m_t = torch.tensor(m, dtype=cam_up.dtype, device=cam_up.device)
         cam_up = cam_up * m_t
 
-    # Lesion prior (boost nekrosis)
+    # Lesion prior (boost nekrosis/bintik cokelat)
     if lesion_boost:
         prior = _lesion_prior_brown(pil_img)                             # numpy 0..1
         prior_t = torch.tensor(prior, dtype=cam_up.dtype, device=cam_up.device)
@@ -355,14 +362,15 @@ def show_prediction_and_cam(
     lesion_boost: bool = True,
     lesion_weight: float = 0.5,
     blend_with_res2: bool = False,
+    erode_border: bool = True
 ):
     # Prediksi
     with torch.no_grad():
         x = transform(pil_img).unsqueeze(0)
         out = model(x)
         probs_raw = torch.softmax(out[0], dim=0).cpu().numpy()
-        used_idx = int(np.argmax(probs_raw))                 # keputusan dari probs asli
-        probs_all = np.clip(probs_raw, 0.0, 0.97)            # tampilan dibatasi 97%
+        used_idx = int(np.argmax(probs_raw))           # ranking dari nilai asli
+        probs_all = np.clip(probs_raw, 0.0, 0.97)      # tampilan dipotong 97%
     pred_label = CLASS_NAMES[used_idx]
 
     # Grad-CAM
@@ -375,7 +383,8 @@ def show_prediction_and_cam(
         include_brown=include_brown,
         lesion_boost=lesion_boost,
         lesion_weight=lesion_weight,
-        blend_with_res2=blend_with_res2
+        blend_with_res2=blend_with_res2,
+        erode_border=erode_border
     )
 
     # Render (jika di Streamlit)
@@ -385,7 +394,7 @@ def show_prediction_and_cam(
             st.image(pil_img, caption="Input", use_container_width=True)
             st.write(f"**Prediksi**: {pred_label}  \n**Confidence**: {float(probs_all[used_idx]):.2%}")
             topk_ = min(topk, len(CLASS_NAMES))
-            order = np.argsort(-probs_raw)[:topk_]  # ranking pakai probs asli agar stabil
+            order = np.argsort(-probs_raw)[:topk_]  # urutan tetap dari nilai asli
             st.markdown("**Alternatif (Top-k)**")
             st.markdown("\n".join([f"{'★' if i==used_idx else '•'} {CLASS_NAMES[i]}: {probs_all[i]:.2%}" for i in order]))
         with col2:
