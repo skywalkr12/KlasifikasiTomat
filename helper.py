@@ -5,7 +5,6 @@
 # 2) Mask daun: hijau, kuning, dan cokelat/oranye gelap (brown)
 # 3) Lesion prior (brownness + darkness) untuk boost area nekrotik (late blight)
 # 4) Blend CAM beda resolusi via upsample, opsi blend dengan res2
-# 5) Temperature Scaling 
 
 import torch, numpy as np
 import torch.nn as nn
@@ -67,8 +66,8 @@ def ConvBlock(in_channels, out_channels, pool=False):
         layers.append(nn.MaxPool2d(4))
     return nn.Sequential(*layers)
 
-# ========= Model (ResNet9-variant) =========
-class ResNet9(ImageClassificationBase):
+# ========= Model (ResNet9-variant, nama kelas tetap ResNet18 agar kompatibel) =========
+class ResNet18(ImageClassificationBase):
     def __init__(self, num_diseases=10, in_channels=3):
         super().__init__()
         self.conv1 = ConvBlock(in_channels, 64)               # 256
@@ -102,9 +101,9 @@ CLASS_NAMES = [
  'Tomato_Leaf_Mold',
  'Tomato_Septoria_leaf_spot',
  'Tomato_Spider_mites_Two_spotted_spider_mite',
- 'Tomato_Target_Spot',
- 'Tomato_Tomato_YellowLeaf__Curl_Virus',
- 'Tomato_Tomato_mosaic_virus',
+ 'Tomato__Target_Spot',
+ 'Tomato__Tomato_YellowLeaf__Curl_Virus',
+ 'Tomato__Tomato_mosaic_virus',
  'Tomato_healthy'
 ]
 
@@ -126,8 +125,8 @@ def _disable_inplace_relu(model: nn.Module):
 # ========= Loader =========
 @st.cache_resource
 def load_model(cache_bust: str = "noinplace-v5"):
-    model = ResNet9(num_diseases=len(CLASS_NAMES), in_channels=3)
-    sd = torch.load("model/resnet9_97.pt", map_location="cpu")
+    model = ResNet18(num_diseases=len(CLASS_NAMES), in_channels=3)
+    sd = torch.load("model/resnet_97_56.pt", map_location="cpu")
     if isinstance(sd, dict) and "model_state_dict" in sd:
         sd = sd["model_state_dict"]
     sd = { (k.replace("module.","") if k.startswith("module.") else k): v for k,v in sd.items() }
@@ -136,23 +135,14 @@ def load_model(cache_bust: str = "noinplace-v5"):
     model.eval()
     return model
 
-# ========= Prediksi (dengan Temperature Scaling) =========
+# ========= Prediksi =========
 @torch.no_grad()
-def predict_image(model, image, temperature: float = 1.0):
+def predict_image(model, image):
     x = transform(image).unsqueeze(0)
-    out = model(x)                              # logits
-    probs = torch.softmax(out[0] / float(temperature), dim=0)
+    out = model(x)
+    probs = torch.softmax(out[0], dim=0)
     idx = torch.argmax(probs).item()
     return CLASS_NAMES[idx], probs.numpy()
-
-# ========= Morphology helper =========
-def _dilate(mask_np: np.ndarray, k: int) -> np.ndarray:
-    """Dilasi via max-pool 2D. k harus ganjil."""
-    k = max(1, int(k))
-    if k % 2 == 0: k += 1
-    t = torch.tensor(mask_np, dtype=torch.float32)[None, None, ...]
-    d = F.max_pool2d(t, kernel_size=k, stride=1, padding=k//2)
-    return d[0,0].cpu().numpy()
 
 # ========= CAM util =========
 def _normalize_cam(cam: torch.Tensor):
@@ -177,50 +167,28 @@ def _overlay(pil_img: Image.Image, cam_hw01: np.ndarray, alpha: float = 0.45) ->
     out = np.clip(out, 0, 1)
     return Image.fromarray((out * 255).astype(np.uint8))
 
-# ========= Mask daun (Green+Yellow + Brown hanya dekat daun) =========
-def _leaf_mask_hsv_with_brown(
-    pil_img: Image.Image,
-    brown_near_leaf_px: int = 16,
-    shadow_veto: bool = True
-) -> np.ndarray:
+# ========= Mask daun (Green+Yellow+Brown) =========
+def _leaf_mask_hsv_with_brown(pil_img: Image.Image) -> np.ndarray:
     """
     HSV skala 0..255 (PIL):
       - hijau:   H∈[60,130], S≥60, V≥40
       - kuning:  H∈[35,59],  S≥60, V≥50
-      - cokelat: H∈[8,35] (atau H<=8) dengan S tinggi, V moderat–gelap
-    Brown hanya diizinkan jika berada di dalam dilatasi 'near_leaf_px' dari inti daun hijau/kuning.
-    Bayangan (S<40 & V<60) di luar inti daun diveto.
+      - cokelat: H∈[8,35] oranye/brown, S≥50, V∈[20,200] (lebih gelap)
     """
     hsv = np.asarray(pil_img.convert("HSV")).astype(np.int32)
     H, S, V = hsv[...,0], hsv[...,1], hsv[...,2]
 
     green  = (H>=60) & (H<=130) & (S>=60) & (V>=40)
     yellow = (H>=35) & (H<=59)  & (S>=60) & (V>=50)
-    base = (green | yellow).astype(np.float32)
-
     brown1 = (H>=8)  & (H<=35)  & (S>=50) & (V>=20) & (V<=200)
+    # sangat gelap (hampir ke merah) dengan S tinggi
     brown2 = (H<=8)  & (S>=60)  & (V>=10) & (V<=180)
-    brown = (brown1 | brown2).astype(np.float32)
 
-    # izinkan brown hanya dekat daun (dilatasi dari base)
-    if brown_near_leaf_px > 0:
-        k = brown_near_leaf_px * 2 + 1  # approx radius -> kernel
-        base_dil = _dilate(base, k)
-        brown = brown * (base_dil > 0.0).astype(np.float32)
+    mask = (green | yellow | brown1 | brown2).astype(np.float32)
 
-    mask = np.clip(base + brown, 0, 1)
-
-    # veto bayangan di luar inti daun
-    if shadow_veto:
-        shadow = (S < 40) & (V < 60)
-        core = (base > 0)  # hanya inti hijau/kuning
-        veto = shadow & (~core)  # bayangan yang bukan inti daun
-        mask[veto] = 0.0
-
-    # smoothing ringan 3x3
+    # box blur 3x3 agar halus
     if mask.sum() > 0:
-        k = 3
-        pad = k // 2
+        k = 3; pad = k // 2
         padded = np.pad(mask, ((pad,pad),(pad,pad)), mode="edge")
         smoothed = np.zeros_like(mask)
         for i in range(mask.shape[0]):
@@ -231,12 +199,20 @@ def _leaf_mask_hsv_with_brown(
 
 # ========= Lesion prior (brownness + darkness) =========
 def _lesion_prior_brown(pil_img: Image.Image) -> np.ndarray:
+    """
+    Peta kelemahan (prior) untuk nekrosis: cokelat/gelap.
+    Skor 0..1 dari:
+      - brownness: R>G & R>B
+      - darkness: V rendah
+    """
     rgb = np.asarray(pil_img.convert("RGB")).astype(np.float32) / 255.0
     r, g, b = rgb[...,0], rgb[...,1], rgb[...,2]
+    # brownness: R dominan, G lemah
     brownness = np.clip((r - g), 0, 1) + np.clip((r - b), 0, 1)
     brownness = brownness / (brownness.max() + 1e-6)
+    # darkness via V (dari HSV 0..255)
     V = np.asarray(pil_img.convert("HSV"))[...,2].astype(np.float32) / 255.0
-    darkness = np.clip((0.8 - V) / 0.8, 0, 1)
+    darkness = np.clip((0.8 - V) / 0.8, 0, 1)  # makin gelap makin tinggi
     prior = 0.6 * brownness + 0.4 * darkness
     # haluskan box 3x3
     k = 3; pad = k // 2
@@ -254,6 +230,13 @@ def _resize_like(cam_src: torch.Tensor, cam_ref: torch.Tensor) -> torch.Tensor:
 
 # ========= Target layer Grad-CAM =========
 def get_target_layer(model: nn.Module, name: str):
+    """
+    Hook ke BatchNorm (pre-pool) agar aman:
+      - "conv4_prepool" -> model.conv4[1] (BN), ~16x16
+      - "conv3_prepool" -> model.conv3[1] (BN), ~64x64
+      - "conv2_prepool" -> model.conv2[1] (BN), ~256x256 (berat)
+      - "res2"          -> output block 4x4 (sangat semantik)
+    """
     if name == "res2":
         return model.res2
     if name == "conv4_prepool":
@@ -286,13 +269,11 @@ class GradCAM:
         self.h1.remove()
         self.h2.remove()
 
-    def compute(self, x: torch.Tensor, class_idx: int | None = None, temperature: float = 1.0):
+    def compute(self, x: torch.Tensor, class_idx: int | None = None):
         with torch.enable_grad():
             self.model.zero_grad(set_to_none=True)
-            out = self.model(x)                # logits
-            # gunakan temperature untuk memilih kelas & probabilitas,
-            # tapi score untuk grad tetap logit mentah agar CAM stabil
-            probs = torch.softmax(out / float(temperature), dim=1)[0]
+            out = self.model(x)                # 1 x C
+            probs = torch.softmax(out, dim=1)[0]
             if class_idx is None:
                 class_idx = int(torch.argmax(probs).item())
             score = out[0, class_idx]
@@ -309,7 +290,7 @@ class GradCAM:
 def gradcam_on_pil(
     model: nn.Module,
     pil_img: Image.Image,
-    target_layer_name: str = "conv3_prepool",
+    target_layer_name: str = "conv3_prepool",  # 64x64 untuk detail lesi lebih tajam
     class_idx: int | None = None,
     alpha: float = 0.45,
     mask_bg: bool = True,
@@ -317,17 +298,21 @@ def gradcam_on_pil(
     lesion_boost: bool = True,
     lesion_weight: float = 0.5,
     blend_with_res2: bool = False,
-    temperature: float = 1.0,
-    brown_near_leaf_px: int = 16,
-    shadow_veto: bool = True,
 ):
+    """
+    mask_bg        : kalikan CAM dengan mask daun (termasuk cokelat jika include_brown=True)
+    include_brown  : perlebar mask untuk warna cokelat/oranye gelap
+    lesion_boost   : gandakan CAM dengan prior nekrosis (brownness+darkness)
+    lesion_weight  : bobot penguat prior (0..1). 0.5 = moderat
+    blend_with_res2: CAM pre-pool diblend dengan CAM res2 (upsample), menstabilkan semantik
+    """
     x = transform(pil_img).unsqueeze(0)
 
     # CAM utama
     tl = get_target_layer(model, target_layer_name)
     engine = GradCAM(model, tl)
     try:
-        cam, used_idx, probs = engine.compute(x, class_idx=class_idx, temperature=temperature)
+        cam, used_idx, probs = engine.compute(x, class_idx=class_idx)   # (Hc,Wc)
     finally:
         engine.remove()
 
@@ -336,7 +321,7 @@ def gradcam_on_pil(
         tl2 = get_target_layer(model, "res2")
         engine2 = GradCAM(model, tl2)
         try:
-            cam2, _, _ = engine2.compute(x, class_idx=used_idx, temperature=temperature)
+            cam2, _, _ = engine2.compute(x, class_idx=used_idx)         # (4,4)
         finally:
             engine2.remove()
         cam2 = _resize_like(cam2, cam)
@@ -344,13 +329,14 @@ def gradcam_on_pil(
 
     # Upsample ke ukuran gambar
     H, W = pil_img.size[1], pil_img.size[0]
-    cam_up = _upsample_cam(cam, (H, W))  # torch (H,W)
+    cam_up = _upsample_cam(cam, (H, W))                                 # torch (H,W)
 
-    # Mask daun
+    # Mask daun (termasuk brown bila include_brown=True)
     if mask_bg:
         if include_brown:
-            m = _leaf_mask_hsv_with_brown(pil_img, brown_near_leaf_px=brown_near_leaf_px, shadow_veto=shadow_veto)
+            m = _leaf_mask_hsv_with_brown(pil_img)
         else:
+            # fallback: hanya green+yellow lama
             hsv = np.asarray(pil_img.convert("HSV")).astype(np.int32)
             Hh, Ss, Vv = hsv[...,0], hsv[...,1], hsv[...,2]
             green  = (Hh>=60) & (Hh<=130) & (Ss>=60) & (Vv>=40)
@@ -359,10 +345,11 @@ def gradcam_on_pil(
         m_t = torch.tensor(m, dtype=cam_up.dtype, device=cam_up.device)
         cam_up = cam_up * m_t
 
-    # Lesion prior (boost nekrosis) — hanya berdampak di area mask
+    # Lesion prior (boost nekrosis)
     if lesion_boost:
-        prior = _lesion_prior_brown(pil_img)  # numpy 0..1
+        prior = _lesion_prior_brown(pil_img)                             # numpy 0..1
         prior_t = torch.tensor(prior, dtype=cam_up.dtype, device=cam_up.device)
+        # Skema boost: cam' = cam * (1 + w*prior) lalu normalisasi
         cam_up = cam_up * (1.0 + float(lesion_weight) * prior_t)
 
     cam_up = _normalize_cam(cam_up).cpu().numpy()
@@ -381,15 +368,12 @@ def show_prediction_and_cam(
     lesion_boost: bool = True,
     lesion_weight: float = 0.5,
     blend_with_res2: bool = False,
-    temperature: float = 1.0,
-    brown_near_leaf_px: int = 16,
-    shadow_veto: bool = True,
 ):
-    # Prediksi (pakai temperature)
+    # Prediksi
     with torch.no_grad():
         x = transform(pil_img).unsqueeze(0)
-        out = model(x)  # logits
-        probs_all = torch.softmax(out[0] / float(temperature), dim=0).cpu().numpy()
+        out = model(x)
+        probs_all = torch.softmax(out[0], dim=0).cpu().numpy()
         used_idx = int(np.argmax(probs_all))
     pred_label = CLASS_NAMES[used_idx]
 
@@ -403,14 +387,22 @@ def show_prediction_and_cam(
         include_brown=include_brown,
         lesion_boost=lesion_boost,
         lesion_weight=lesion_weight,
-        blend_with_res2=blend_with_res2,
-        temperature=temperature,
-        brown_near_leaf_px=brown_near_leaf_px,
-        shadow_veto=shadow_veto
+        blend_with_res2=blend_with_res2
     )
 
-    # (opsi render di Streamlit ditangani di prediksi.py)
+    # Render (jika di Streamlit)
+    try:
+        col1, col2 = st.columns([1,1])
+        with col1:
+            st.image(pil_img, caption="Input", use_container_width=True)
+            st.write(f"**Prediksi**: {pred_label}  \n**Confidence**: {float(probs_all.max()):.2%}")
+            topk_ = min(topk, len(CLASS_NAMES))
+            order = np.argsort(-probs_all)[:topk_]
+            st.markdown("**Alternatif (Top-k)**")
+            st.markdown("\n".join([f"{'★' if i==used_idx else '•'} {CLASS_NAMES[i]}: {probs_all[i]:.2%}" for i in order]))
+        with col2:
+            st.image(overlay, caption=f"Grad-CAM ({target_layer_name}) → {pred_label}", use_container_width=True)
+    except Exception:
+        pass
+
     return overlay, cam, used_idx, probs_all
-
-
-
