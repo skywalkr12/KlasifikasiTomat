@@ -1,3 +1,4 @@
+# prediksi.py
 import streamlit as st
 from PIL import Image
 import matplotlib.pyplot as plt
@@ -28,20 +29,21 @@ with st.sidebar:
     )
     alpha = st.slider("Transparansi Heatmap (α)", 0.0, 1.0, 0.45, 0.05)
     topk  = st.slider("Jumlah alternatif (Top-k)", 1, min(5, len(CLASS_NAMES)), 3, 1)
+
     mask_bg = st.checkbox("Mask background (fokus ke daun)", True)
     blend_with_res2 = st.checkbox("Blend dengan res2 (stabilkan semantik)", True)
 
-    # (Opsional) jika mau kontrol manual:
-    include_brown = True
-    lesion_boost  = True
-    lesion_weight = 0.5
-    erode_border  = True  # aktifkan agar tepi daun tidak mendominasi
+    st.markdown("---")
+    # 🔧 Toggle yang kamu minta:
+    erode_border = st.checkbox("Erosi tepi mask 1px (redam pinggiran daun)", True)
+    lesion_boost = st.checkbox("Deteksi bintik (aktifkan lesion prior)", True)
+    lesion_weight = st.slider("Bobot deteksi bintik (lesion prior)", 0.0, 1.0, 0.5, 0.05)
 
     st.markdown("---")
     show_full_chart = st.checkbox("Tampilkan chart probabilitas lengkap", True)
     sort_desc = st.checkbox("Urutkan chart menurun", True)
 
-# ----- Model -----
+# ----- Model (pakai cache-bust agar benar-benar reload) -----
 model = load_model(cache_bust="noinplace-v3")
 
 # ----- Uploader -----
@@ -50,20 +52,20 @@ uploaded_file = st.file_uploader("Upload gambar daun tomat", type=["jpg", "jpeg"
 if uploaded_file:
     image = Image.open(uploaded_file).convert("RGB")
 
-    # Prediksi + Grad-CAM (probabilitas tampilan max 97%; erosi tepi aktif)
+    # Prediksi + Grad-CAM (probabilitas tampilan max 97% diset di helper)
     overlay, cam, used_idx, probs_all = show_prediction_and_cam(
         model, image,
         alpha=alpha,
         topk=topk,
         target_layer_name=target_layer_name,
-        include_brown=include_brown,
+        include_brown=True,                          # bantu deteksi cokelat
         lesion_boost=lesion_boost, lesion_weight=lesion_weight,
         mask_bg=mask_bg,
         blend_with_res2=blend_with_res2,
         erode_border=erode_border
     )
 
-    # Chart probabilitas lengkap (pakai probs_all yang sudah dipotong)
+    # Chart probabilitas lengkap (pakai probs_all yang sudah dibatasi 97% di helper)
     if show_full_chart:
         st.subheader("📊 Probabilitas per Kelas (maks 97%)")
         probs = np.array(probs_all)
@@ -83,7 +85,7 @@ if uploaded_file:
         overlay2, _, _, _, _ = gradcam_on_pil(
             model, image,
             target_layer_name=target_layer_name,
-            include_brown=include_brown,
+            include_brown=True,
             lesion_boost=lesion_boost, lesion_weight=lesion_weight,
             class_idx=target_idx,
             alpha=alpha,
@@ -101,7 +103,10 @@ if uploaded_file:
         "Probabilitas (%)": f"{float(probs_all[used_idx]) * 100:.2f}",
         "Layer": target_layer_name,
         "MaskBG": mask_bg,
-        "BlendRes2": blend_with_res2
+        "BlendRes2": blend_with_res2,
+        "ErodeBorder": erode_border,
+        "LesionBoost": lesion_boost,
+        "LesionWeight": lesion_weight
     })
 
 # Riwayat + unduh
@@ -113,16 +118,16 @@ if st.session_state["history"]:
     st.download_button("⬇️ Download CSV", csv, "histori_prediksi.csv", "text/csv")
 
 st.write("""
-Catatan: Ini adalah alat diagnosis berbantuan AI. Gunakan sebagai panduan; untuk keputusan konklusif,
-konsultasikan dengan ahli patologi tanaman.
+Catatan: Ini adalah alat diagnosis berbantuan AI dan sebaiknya digunakan sebagai panduan.
+Untuk diagnosis konklusif, konsultasikan dengan ahli patologi tanaman.
 """)
 
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; font-size:14px;'>
 <b>© - 2025 | Muhammad Sahrul Farhan | 51421076</b><br>
-🔗 <a href="https://www.linkedin.com/in/muhammad-sahrul-farhan/" target="blank_">LinkedIn</a> | 
-<a href="https://www.instagram.com/eitcheien/" target="blank_">Instagram</a> | 
+🔗 <a href="https://www.linkedin.com/in/muhammad-sahrul-farhan/" target="blank_">LinkedIn</a> |
+<a href="https://www.instagram.com/eitcheien/" target="blank_">Instagram</a> |
 <a href="https://www.facebook.com/skywalkr12" target="blank_">Facebook</a>
 </div>
 """, unsafe_allow_html=True)
