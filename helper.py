@@ -105,7 +105,7 @@ transform = transforms.Compose([
 
 # ========= Loader =========
 def load_model(cache_bust: str = "noinplace-v5"):
-    model = ResNet18(num_diseases=len(CLASS_NAMES), in_channels=3)
+    model = ResNet9(num_diseases=len(CLASS_NAMES), in_channels=3)
     sd = torch.load("model/resnet9_99(1).pt", map_location="cpu")
     if isinstance(sd, dict) and "model_state_dict" in sd:
         sd = sd["model_state_dict"]
@@ -350,5 +350,6 @@ def show_prediction_and_cam(
     )
 
     return overlay, cam, used_idx, probs_raw
+
 
 
