@@ -53,7 +53,7 @@ def ConvBlock(in_channels, out_channels, pool=False):
     return nn.Sequential(*layers)
 
 # ========= Model (ResNet9-variant, class-name dibiarkan ResNet18 untuk kompatibilitas) =========
-class ResNet18(ImageClassificationBase):
+class ResNet9(ImageClassificationBase):
     def __init__(self, num_diseases=10, in_channels=3):
         super().__init__()
         self.conv1 = ConvBlock(in_channels, 64)               # 256
@@ -350,19 +350,5 @@ def show_prediction_and_cam(
     )
 
     return overlay, cam, used_idx, probs_raw
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
