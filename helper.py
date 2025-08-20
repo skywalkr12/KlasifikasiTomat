@@ -53,7 +53,7 @@ def ConvBlock(in_channels, out_channels, pool=False):
     return nn.Sequential(*layers)
 
 # ========= Model (ResNet9-variant, class-name dibiarkan ResNet18 untuk kompatibilitas) =========
-class ResNet9(ImageClassificationBase):
+class ResNet18(ImageClassificationBase):
     def __init__(self, num_diseases=10, in_channels=3):
         super().__init__()
         self.conv1 = ConvBlock(in_channels, 64)               # 256
@@ -101,7 +101,7 @@ transform = transforms.Compose([
 
 # ========= Loader =========
 def load_model(cache_bust: str = "noinplace-v5"):
-    model = ResNet9(num_diseases=len(CLASS_NAMES), in_channels=3)
+    model = ResNet18(num_diseases=len(CLASS_NAMES), in_channels=3)
     sd = torch.load("model/resnet9_97.pt", map_location="cpu")
     if isinstance(sd, dict) and "model_state_dict" in sd:
         sd = sd["model_state_dict"]
@@ -346,6 +346,7 @@ def show_prediction_and_cam(
     )
 
     return overlay, cam, used_idx, probs_raw
+
 
 
 
