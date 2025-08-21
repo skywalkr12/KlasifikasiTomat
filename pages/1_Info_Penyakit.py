@@ -2,7 +2,7 @@
 import streamlit as st
 
 diseases = {
-	healthy = {
+	"healthy" = {
     "desc": [
         "Warna hijau merata …",
         "Tidak ada bercak/lesi …",
@@ -106,4 +106,5 @@ st.markdown("""
 <a href="https://www.facebook.com/skywalkr12" target="blank_">Facebook</a>
 </div>
 """, unsafe_allow_html=True)
+
 
