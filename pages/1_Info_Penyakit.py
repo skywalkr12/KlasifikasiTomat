@@ -78,6 +78,9 @@ diseases = {
     },
 }
 
+st.markdown("**Penyebab & Gejala:**\n" + "\n".join([f"{i+1}. {x}" for i, x in enumerate(healthy["desc"])]))
+st.markdown("**Penanganan:**\n" + "\n".join([f"{i+1}. {x}" for i, x in enumerate(healthy["handling"])]))
+
 st.title("🩺 Informasi Penyakit Tomat")
 
 for name, data in diseases.items():
@@ -103,3 +106,4 @@ st.markdown("""
 <a href="https://www.facebook.com/skywalkr12" target="blank_">Facebook</a>
 </div>
 """, unsafe_allow_html=True)
+
