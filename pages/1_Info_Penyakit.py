@@ -26,7 +26,6 @@ diseases = {
         ],
         "severity": "—",
         "image": "Healthy.JPG",
-        "sources": []
     },
 
     # ---------- 1) Spider mites — RENDAH → SEDANG ----------
@@ -41,10 +40,6 @@ diseases = {
         ],
         "severity": "Rendah → Sedang",
         "image": "Spider Mites.JPG",
-        "sources": [
-            "https://ipm.ucanr.edu/PMG/PESTNOTES/pn7405.html",
-            "https://extension.umn.edu/yard-and-garden-insects/spider-mites"
-        ]
     },
 
     # ---------- 2) Leaf mold — RENDAH → SEDANG ----------
@@ -59,10 +54,6 @@ diseases = {
         ],
         "severity": "Rendah → Sedang",
         "image": "Leaf Mold.JPG",
-        "sources": [
-            "https://extension.psu.edu/tomato-leaf-mold",
-            "https://vegetablemdonline.ppath.cornell.edu/factsheets/Tomato_LeafMold.htm"
-        ]
     },
 
     # ---------- 3) Septoria leaf spot — SEDANG ----------
@@ -77,10 +68,6 @@ diseases = {
         ],
         "severity": "Sedang",
         "image": "Septoria Leaf Spot.JPG",
-        "sources": [
-            "https://extension.umn.edu/diseases/septoria-leaf-spot",
-            "https://extension.psu.edu/septoria-leaf-spot-of-tomato"
-        ]
     },
 
     # ---------- 4) TMV/ToMV — SEDANG → TINGGI ----------
@@ -95,10 +82,6 @@ diseases = {
         ],
         "severity": "Sedang → Tinggi",
         "image": "Tomato Mosaic Virus (TMV).JPG",
-        "sources": [
-            "https://www.rhs.org.uk/disease/tobacco-mosaic-virus",
-            "https://apsjournals.apsnet.org/doi/full/10.1094/PDIS-91-12-1513A"
-        ]
     },
 
     # ---------- 5) Bacterial spot — SEDANG → TINGGI ----------
@@ -113,10 +96,6 @@ diseases = {
         ],
         "severity": "Sedang → Tinggi",
         "image": "Bacterial Spot.JPG",
-        "sources": [
-            "https://edis.ifas.ufl.edu/publication/pp121",
-            "https://content.ces.ncsu.edu/bacterial-spot-of-tomato"
-        ]
     },
 
     # ---------- 6) Target spot — TINGGI ----------
@@ -131,10 +110,6 @@ diseases = {
         ],
         "severity": "Tinggi",
         "image": "Target Spot.JPG",
-        "sources": [
-            "https://www.daf.qld.gov.au/__data/assets/pdf_file/0005/1526256/target-spot-of-tomato.pdf",
-            "https://projects.sare.org/wp-content/uploads/Target-Spot-of-Tomato-UF-IFAS.pdf"
-        ]
     },
 
     # ---------- 7) Early blight — TINGGI ----------
@@ -149,10 +124,6 @@ diseases = {
         ],
         "severity": "Tinggi",
         "image": "Early Blight.JPG",
-        "sources": [
-            "https://extension.umn.edu/diseases/early-blight-tomato",
-            "https://vegetablemdonline.ppath.cornell.edu/factsheets/Tomato_EarlyBlight.htm"
-        ]
     },
 
     # ---------- 8) Late blight — SANGAT TINGGI ----------
@@ -167,10 +138,6 @@ diseases = {
         ],
         "severity": "Sangat Tinggi",
         "image": "Late Blight.JPG",
-        "sources": [
-            "https://usablight.org/educate/",
-            "https://www.rhs.org.uk/disease/late-blight"
-        ]
     },
 
     # ---------- 9) TYLCV — EKSTREM ----------
@@ -185,11 +152,6 @@ diseases = {
         ],
         "severity": "Ekstrem",
         "image": "Tomato Yellow Leaf Curl Virus (TYLCV).JPG",
-        "sources": [
-            "https://www.plantwise.org/knowledgebank/",
-            "https://www.cabi.org/isc/datasheet/56679",
-            "https://edis.ifas.ufl.edu/publication/IN716"
-        ]
     }
 }
 
@@ -268,6 +230,7 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
 
 
 
