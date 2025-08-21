@@ -3,19 +3,19 @@ import streamlit as st
 
 diseases = {
 	"Healthy": {
-        "desc": "1) Warna hijau merata (dari hijau sedang ke hijau tua) tanpa pola mosaik/klorosis yang aneh.
-                 2) Tidak ada bercak/lesi (tidak ada titik kecil keabu-abuan, bercak berlingkar “target”, tepi menghitam, atau bercak berminyak).
-                 3) Tidak menggulung/mengeriting dan tidak menyempit; helaian tetap rata dengan turgor baik (tidak layu).
-                 4) Tepi daun utuh (tidak sobek/nekrotik).
-                 5) Bagian bawah daun bersih—tidak ada serbuk/jamur (mis. lapisan zaitun khas leaf mold), jaring halus tungau, atau honeydew/sooty mold dari kutu kebul/aphid.
-                 6) Urat daun normal (tidak menebal/menonjol).
-                 7) Pertumbuhan tunas baru tampak segar dan simetris.",
-        "handling": "1) Siram di pangkal (drip) pada pagi hari; hindari membasahi daun. Ini memutus percikan patogen daun.
-		     2) Mulsa (organik/ plastik) untuk menahan percikan tanah & stabilkan kelembapan.
-		     3) Jarang-kanopi & ajir/trellis supaya sirkulasi udara bagus; pangkas daun bawah yang menyentuh tanah.
-		     4) Rotasi 2–3 tahun + sanitasi alat & lahan; jangan bekerja saat tanaman basah.
-		     5) pH & hara seimbang: target pH tanah ± 6.0–6.8, uji tanah, hindari N berlebih.
-                     6) Monitoring hama mingguan (bawah daun): jaga musuh alami; semprot sabun/minyak bila ambang terlampaui. Untuk daerah risiko TYLCV, mulsa reflektif saat awal musim menekan kedatangan kutu kebul.",
+        "desc": " • Warna hijau merata (dari hijau sedang ke hijau tua) tanpa pola mosaik/klorosis yang aneh.
+                  • Tidak ada bercak/lesi (tidak ada titik kecil keabu-abuan, bercak berlingkar “target”, tepi menghitam, atau bercak berminyak).
+                  • Tidak menggulung/mengeriting dan tidak menyempit; helaian tetap rata dengan turgor baik (tidak layu).
+                  • Tepi daun utuh (tidak sobek/nekrotik).
+                  • Bagian bawah daun bersih—tidak ada serbuk/jamur (mis. lapisan zaitun khas leaf mold), jaring halus tungau, atau honeydew/sooty mold dari kutu kebul/aphid.
+                  • Urat daun normal (tidak menebal/menonjol).
+                  • Pertumbuhan tunas baru tampak segar dan simetris.",
+        "handling": " • Siram di pangkal (drip) pada pagi hari; hindari membasahi daun. Ini memutus percikan patogen daun.
+		     • Mulsa (organik/ plastik) untuk menahan percikan tanah & stabilkan kelembapan.
+		     • Jarang-kanopi & ajir/trellis supaya sirkulasi udara bagus; pangkas daun bawah yang menyentuh tanah.
+		     • Rotasi 2–3 tahun + sanitasi alat & lahan; jangan bekerja saat tanaman basah.
+		     • pH & hara seimbang: target pH tanah ± 6.0–6.8, uji tanah, hindari N berlebih.
+			 • Monitoring hama mingguan (bawah daun): jaga musuh alami; semprot sabun/minyak bila ambang terlampaui. Untuk daerah risiko TYLCV, mulsa reflektif saat awal musim menekan kedatangan kutu kebul.",
 
     },
 
@@ -99,6 +99,7 @@ st.markdown("""
 <a href="https://www.facebook.com/skywalkr12" target="blank_">Facebook</a>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
