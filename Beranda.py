@@ -16,6 +16,12 @@ Gunakan menu di sidebar untuk membaca informasi penyakit dan memprediksi penyaki
 
 st.image("images/tomato_banner.jpg", use_container_width=True)
 
+st.write(""" Sektor pertanian memegang peranan penting dalam mendorong pertumbuhan ekonomi nasional. 
+Secara umum, sektor ini terdiri atas beberapa subsektor, seperti hortikultura, perkebunan, dan tanaman pangan. 
+Di antara ketiganya, subsektor hortikultura, yang mencakup komoditas buah dan sayuran, menjadi komponen krusial dalam mendukung peningkatan Produk Domestik Bruto (PDB). 
+Salah satu komoditas hortikultura yang memiliki prospek tinggi adalah tomat, yaitu sayuran multifungsi dengan beragam kegunaan.
+""")
+
 st.write("""
 Sebagai Catatan: Ini adalah alat diagnosis dengan bantuan Kecerdasan Buatan dan sebaiknya digunakan hanya sebagai panduan.
 Untuk diagnosis konklusif, konsultasikan dengan ahli patologi tanaman profesional.
@@ -32,5 +38,6 @@ st.markdown("""
 <a href="https://www.facebook.com/skywalkr12" target="blank_">Facebook</a>
 </div>
 """, unsafe_allow_html=True)
+
 
 
