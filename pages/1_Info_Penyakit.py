@@ -105,7 +105,7 @@ diseases = {
     "Bacterial Spot": {
         "desc": [
             "Bercak kecil berair → nekrotik pada daun; tepi kuning. Pada buah: bercak kasar/berlekuk.",
-            "Sangat cocok kondisi hangat–basah."
+            "Sangat rawan di kondisi hangat–lembab."
         ],
         "handling": [
             "Pencegahan: benih/transplan sehat, rotasi, hindari percikan & bekerja saat tanaman basah.",
@@ -268,4 +268,5 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
 
