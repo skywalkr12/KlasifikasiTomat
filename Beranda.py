@@ -19,17 +19,15 @@ dan geser ke bawah di bagian beranda untuk Membaca Informasi Singkat tentang Tan
 st.image("Beranda_tomat.jpeg", use_container_width=True)
 
 st.write("""
-Sektor pertanian memegang peranan penting dalam mendorong pertumbuhan ekonomi nasional. 
-Secara umum, sektor ini terdiri atas beberapa subsektor, seperti hortikultura, perkebunan, dan tanaman pangan. 
-Di antara ketiganya, subsektor hortikultura, yang mencakup komoditas buah dan sayuran, menjadi komponen krusial dalam mendukung peningkatan Produk Domestik Bruto (PDB). 
-Salah satu komoditas hortikultura yang memiliki prospek tinggi adalah tomat, yaitu sayuran multifungsi dengan beragam kegunaan.
+Tomat atau rangam (Solanum lycopersicum) adalah tumbuhan dari keluarga Terong-terongan, tumbuhan asli Amerika Tengah dan Selatan, dari Meksiko sampai Peru. Tomat merupakan tumbuhan siklus hidup singkat, dapat tumbuh setinggi 1 sampai 3 meter. Tumbuhan ini memiliki buah berwarna hijau, kuning, dan merah yang biasa dipakai sebagai sayur dalam masakan atau dimakan secara langsung tanpa diproses. Tomat memiliki batang dan daun yang tidak dapat dikonsumsi karena masih sekeluarga dengan kentang dan terung yang mengadung alkaloid.
 """)
 
 st.write("""
-Tomat (Solanum lycopersicum) merupakan komoditas hortikultura dengan tingkat konsumsi tinggi di Indonesia. 
-Berdasarkan data dari statistik hortikultura, penurunan produksi tomat mencapai 2,14 % pada 2023, 
-namun produksi tomat diproyeksikan kembali naik hingga sekitar 1 juta ton pada 2025 yang mencerminkan stabilitas 
-dan pemulihan sektor hortikultura
+Cara menanam tanaman tomat adalah disemai lebih dahulu, setelah tumbuh 4 daun sejati kemudian ditanam (dijadikan bibit terlebih dahulu). Panen dimulai usia 9 minggu setelah tanam selanjutnya setiap 5 hari.
+""")
+
+st.write("""
+Salah satu produk buatan hasil olahan tomat yang digemari, yaitu saus tomat. Hampir di berbagai negara memproduksi saus tomat. Saus tomat sendiri banyak dimanfaatkan untuk bumbu tambahan dalam mengolah berbagai masakan. Saus tomat juga dapat disajikan langsung bersama burger, sandwich, dan banyak lagi yang lainnya. Selain untuk tambahan dalam mengolah makanan, tomat juga dapat diolah menjadi jus tomat dan sebagai bahan tambahan untuk membuat sambal.
 """)
 
 # Footer
@@ -48,6 +46,7 @@ st.markdown("""
 <a href="https://www.facebook.com/skywalkr12" target="blank_">Facebook</a>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
