@@ -1,6 +1,6 @@
 import streamlit as st
 
-st.set_page_config(page_title="🩺 Informasi Penyakit Tomat", layout="centered")
+st.set_page_config(page_title="🩺 Informasi Penyakit Tanaman Tomat", layout="centered")
 
 # =========================
 # DATA (Healthy: biarkan/ubah sesuai punyamu)
@@ -249,7 +249,7 @@ def render_section(name: str, data: dict):
 # =========================
 # UI
 # =========================
-st.title("🩺 Informasi Penyakit Tomat — Urutan Keparahan (ID)")
+st.title("🩺 Informasi Penyakit Tanaman Tomat (Beserta Tingkat Keparahan)")
 
 for key in ordered_keys:
     if key in diseases:
@@ -268,5 +268,6 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
 
 
