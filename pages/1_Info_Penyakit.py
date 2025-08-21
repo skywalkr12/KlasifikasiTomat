@@ -3,10 +3,12 @@ import streamlit as st
 
 diseases = {
 	"Healthy": {
-        "desc": """ Warna hijau merata (dari hijau sedang ke hijau tua) tanpa pola mosaik/klorosis yang aneh. Tidak ada bercak/lesi (tidak ada titik kecil keabu-abuan, bercak berlingkar “target”, tepi menghitam, atau bercak berminyak). Tidak menggulung/mengeriting dan tidak menyempit; helaian tetap rata dengan turgor baik (tidak layu). Tepi daun utuh (tidak sobek/nekrotik).
-                  Bagian bawah daun bersih—tidak ada serbuk/jamur (mis. lapisan zaitun khas leaf mold), jaring halus tungau, atau honeydew/sooty mold dari kutu kebul/aphid.
-                  Urat daun normal (tidak menebal/menonjol).
-                  Pertumbuhan tunas baru tampak segar dan simetris.""" ,
+        "desc": """ 1. Warna hijau merata (dari hijau sedang ke hijau tua) tanpa pola mosaik/klorosis yang aneh. 
+					2. Tidak ada bercak/lesi (tidak ada titik kecil keabu-abuan, bercak berlingkar “target”, tepi menghitam, atau bercak berminyak). Tidak menggulung/mengeriting dan tidak menyempit; helaian tetap rata dengan turgor baik (tidak layu). 
+	 				3. Tepi daun utuh (tidak sobek/nekrotik). 
+	  				4. Bagian bawah daun bersih—tidak ada serbuk/jamur (mis. lapisan zaitun khas leaf mold), jaring halus tungau, atau honeydew/sooty mold dari kutu kebul/aphid.
+	   				5. Urat daun normal (tidak menebal/menonjol).
+					6. Pertumbuhan tunas baru tampak segar dan simetris.""" ,
         "handling": """ Siram di pangkal (drip) pada pagi hari; hindari membasahi daun. Ini memutus percikan patogen daun.
 		     Mulsa (organik/ plastik) untuk menahan percikan tanah & stabilkan kelembapan.
 		     Jarang-kanopi & ajir/trellis supaya sirkulasi udara bagus; pangkas daun bawah yang menyentuh tanah.
@@ -97,6 +99,7 @@ st.markdown("""
 <a href="https://www.facebook.com/skywalkr12" target="blank_">Facebook</a>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
