@@ -8,13 +8,13 @@ st.set_page_config(page_title="🩺 Informasi Penyakit Tomat", layout="centered"
 diseases = {
     "Healthy": {
         "desc": [
-            "Warna hijau merata (tidak mosaik/klorosis).",
-            "Tidak ada bercak/lesi.",
-            "Tidak menggulung/mengeriting; turgor baik (tidak layu).",
+            "Warna hijau merata (dari hijau sedang ke hijau tua) tanpa pola mosaik/klorosis yang aneh.",
+            "Tidak ada bercak/lesi (tidak ada titik kecil keabu-abuan, bercak berlingkar “target”, tepi menghitam, atau bercak berminyak).",
+            "Tidak menggulung/mengeriting dan tidak menyempit; helaian tetap rata dengan turgor baik (tidak layu).",
             "Tepi daun utuh (tidak sobek/nekrotik).",
-            "Bagian bawah daun bersih—tidak ada lapisan jamur/jaring tungau/honeydew.",
+            "Bagian bawah daun bersih—tidak ada serbuk/jamur (mis. lapisan zaitun khas leaf mold), jaring halus tungau, atau honeydew/sooty mold dari kutu kebul/aphid.",
             "Urat daun normal (tidak menebal/menonjol).",
-            "Tunas baru segar dan simetris."
+            "Pertumbuhan tunas baru tampak segar dan simetris."
         ],
         "handling": [
             "Siram di pangkal (drip) pada pagi hari; jangan membasahi daun.",
@@ -141,5 +141,6 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
 
 
