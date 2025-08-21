@@ -14,7 +14,7 @@ Selamat datang di aplikasi deteksi penyakit tomat berbasis Deep Learning.
 Gunakan menu di sidebar untuk membaca informasi penyakit dan memprediksi penyakit tomat.
 """)
 
-st.image("images/tomato_banner.jpg", use_container_width=True)
+st.image("Beranda_tomat.jpeg", use_container_width=True)
 
 st.write(""" Sektor pertanian memegang peranan penting dalam mendorong pertumbuhan ekonomi nasional. 
 Secara umum, sektor ini terdiri atas beberapa subsektor, seperti hortikultura, perkebunan, dan tanaman pangan. 
@@ -38,6 +38,7 @@ st.markdown("""
 <a href="https://www.facebook.com/skywalkr12" target="blank_">Facebook</a>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
