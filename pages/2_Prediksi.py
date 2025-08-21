@@ -13,6 +13,59 @@ from helper import (
     CLASS_NAMES
 )
 
+# === Gate "tomato-only" versi LAB (ringkas) ===
+# requires: opencv-python-headless
+import cv2
+
+def _leaf_mask_lab(img_rgb,
+                   L_min=25, L_max=245,
+                   a_green_max=-5, a_brown_min=12, b_yellow_min=10):
+    """Mask daun tomat: hijau (a* negatif), kuning (b* positif), cokelat (a* & b* positif)."""
+    lab = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2LAB)
+    L, A, B = lab[..., 0], lab[..., 1], lab[..., 2]
+    a = A.astype(np.int16) - 128
+    b = B.astype(np.int16) - 128
+    green  = (a <= a_green_max) & (L >= L_min) & (L <= L_max)
+    yellow = (a >  a_green_max) & (a < a_brown_min) & (b >= b_yellow_min) & (L >= L_min) & (L <= L_max)
+    brown  = (a >= a_brown_min) & (b >= b_yellow_min) & (L >= L_min)
+    m = (green | yellow | brown).astype(np.uint8)
+    m = cv2.morphologyEx(m, cv2.MORPH_OPEN,  np.ones((5,5), np.uint8))
+    m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, np.ones((7,7), np.uint8))
+    m = cv2.dilate(m, np.ones((3,3), np.uint8), 1)
+    return m
+
+def _largest_component_stats(mask01):
+    """Ambil komponen terbesar sebagai daun utama; kembalikan fraksi area & solidity."""
+    num, labels = cv2.connectedComponents(mask01)
+    if num <= 1:
+        return 0.0, 0.0
+    best, area = 0, 0
+    for lb in range(1, num):
+        a = int((labels == lb).sum())
+        if a > area:
+            best, area = lb, a
+    comp = (labels == best).astype(np.uint8)
+    frac = comp.mean()
+    cnts, _ = cv2.findContours(comp, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not cnts:
+        return float(frac), 0.0
+    cnt = max(cnts, key=cv2.contourArea)
+    hull = cv2.convexHull(cnt)
+    sol = float(cv2.contourArea(cnt) / (cv2.contourArea(hull) + 1e-6))
+    return float(frac), sol
+
+def tomato_gate(pil_image, min_mask_frac=0.08, max_mask_frac=0.95, min_solidity=0.25):
+    """Return: (accept: bool, info: dict). Tolak jika bukan daun tomat/kurang layak."""
+    rgb = np.array(pil_image.convert("RGB"))
+    m = _leaf_mask_lab(rgb)
+    frac, sol = _largest_component_stats(m)
+    reasons = []
+    if frac < min_mask_frac: reasons.append(f"mask terlalu kecil ({frac:.2f})")
+    if frac > max_mask_frac: reasons.append(f"mask terlalu besar ({frac:.2f})")
+    if sol  < min_solidity:  reasons.append(f"solidity rendah ({sol:.2f})")
+    return (len(reasons) == 0), {"mask_frac": frac, "solidity": sol, "reasons": reasons}
+# === End gate ===
+
 st.set_page_config(page_title="Prediksi Penyakit Tomat + Grad-CAM", layout="wide")
 st.title("🔍 Prediksi Penyakit Tomat + Fitur Grad-CAM")
 
@@ -61,6 +114,12 @@ uploaded_file = st.file_uploader("Upload gambar daun tomat", type=["jpg", "jpeg"
 if uploaded_file:
     image = Image.open(uploaded_file).convert("RGB")
 
+    # === Gate "tomato-only": tolak jika bukan daun tomat/kurang layak ===
+    accept, info_gate = tomato_gate(image)  # ambang default sudah aman
+    if not accept:
+        st.error("❌ Ditolak: bukan daun tomat / kualitas kurang memadai → " + ", ".join(info_gate["reasons"]))
+        st.stop()
+
     # Prediksi + Grad-CAM (helper TIDAK merender apa pun)
     overlay, cam, used_idx, probs_raw = show_prediction_and_cam(
         model, image,
@@ -78,6 +137,7 @@ if uploaded_file:
     col1, col2 = st.columns([1, 1])
     with col1:
         st.image(image, caption="Input", use_container_width=True)
+        st.caption(f"Gate: mask_frac={info_gate['mask_frac']:.2f}, solidity={info_gate['solidity']:.2f}")
     with col2:
         st.image(
             overlay,
