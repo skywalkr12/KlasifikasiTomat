@@ -2,66 +2,81 @@
 import streamlit as st
 
 diseases = {
+	healthy = {
+    "desc": [
+        "Warna hijau merata …",
+        "Tidak ada bercak/lesi …",
+        "Tidak menggulung/mengeriting …",
+        "Tepi daun utuh …",
+        "Bagian bawah daun bersih …",
+        "Urat daun normal …",
+        "Pertumbuhan tunas baru segar dan simetris."
+    ],
+    "handling": [
+        "Siram di pangkal (drip) …",
+        "Mulsa (organik/plastik) …",
+        "Jarang-kanopi & ajir/trellis …",
+        "Rotasi 2–3 tahun + sanitasi …",
+        "pH 6.0–6.8, uji tanah, hindari N berlebih …",
+        "Monitoring hama mingguan …"
+    ]
+},
+
+
     "Bacterial Spot": {
         "desc": "Disebabkan oleh bakteri *Xanthomonas campestris*. Bercak kecil coklat atau hitam pada daun dan buah, tepi bercak sering berwarna kuning.",
         "handling": "Gunakan benih sehat, rotasi tanaman, semprot tembaga atau bakterisida sesuai anjuran.",
         "source": "https://plantvillage.psu.edu/topics/tomato"
     },
+
     "Early Blight": {
         "desc": "Disebabkan oleh jamur *Alternaria solani*. Gejalanya bercak coklat dengan lingkaran konsentris pada daun tua.",
         "handling": "Gunakan fungisida berbahan aktif klorotalonil atau mankozeb. Buang daun terinfeksi & rotasi tanaman.",
         "source": "https://extension.umn.edu/diseases/early-blight-tomato"
     },
+
     "Late Blight": {
         "desc": "Disebabkan oleh oomycete *Phytophthora infestans*. Daun muncul bercak air, kemudian membusuk.",
         "handling": "Semprot fungisida berbahan aktif metalaksil atau tembaga. Hindari kelembaban tinggi.",
         "source": "https://www.rhs.org.uk/disease/late-blight"
     },
+
     "Leaf Mold": {
         "desc": "Disebabkan oleh jamur *Passalora fulva*. Muncul bercak kuning di atas daun, dengan lapisan jamur hijau di bawah daun.",
         "handling": "Perbaiki sirkulasi udara, kurangi kelembaban. Fungisida berbahan aktif tembaga efektif.",
         "source": "https://extension.psu.edu/tomato-leaf-mold"
     },
+
     "Septoria Leaf Spot": {
         "desc": "Disebabkan oleh jamur *Septoria lycopersici*. Bercak kecil coklat kehitaman dengan tepi jelas.",
         "handling": "Buang daun terinfeksi, gunakan fungisida berbahan aktif klorotalonil atau mankozeb.",
         "source": "https://extension.umn.edu/diseases/septoria-leaf-spot"
     },
+
     "Spider Mites": {
         "desc": "Serangan tungau laba-laba (*Tetranychus urticae*). Daun menguning, ada jaring halus.",
         "handling": "Gunakan akarisida atau semprot air sabun. Pelihara predator alami seperti kumbang.",
         "source": "https://ipm.ucanr.edu/PMG/PESTNOTES/pn7405.html"
     },
+
     "Target Spot": {
         "desc": "Disebabkan oleh jamur *Corynespora cassiicola*. Bercak melingkar dengan pusat keabu-abuan.",
         "handling": "Gunakan fungisida berbahan aktif klorotalonil. Hindari penyiraman berlebihan.",
         "source": "https://www.daf.qld.gov.au/business-priorities/plants"
     },
+
     "Yellow Leaf Curl Virus": {
         "desc": "Virus yang ditularkan kutu kebul (*Bemisia tabaci*). Daun mengeriting & pertumbuhan terhambat.",
         "handling": "Kendalikan vektor (kutu kebul) dengan insektisida & perangkap kuning. Gunakan varietas tahan virus.",
         "source": "https://www.plantwise.org/knowledgebank"
     },
+
     "Mosaic Virus": {
         "desc": "Penyakit virus yang menyebabkan mosaik kuning-hijau pada daun.",
         "handling": "Cabut tanaman terinfeksi. Gunakan bibit sehat & bersihkan peralatan tanam.",
         "source": "https://www.rhs.org.uk/disease/tobacco-mosaic-virus"
     },
-    "Healthy": {
-        "desc": "1) Warna hijau merata (dari hijau sedang ke hijau tua) tanpa pola mosaik/klorosis yang aneh.
-                 2) Tidak ada bercak/lesi (tidak ada titik kecil keabu-abuan, bercak berlingkar “target”, tepi menghitam, atau bercak berminyak).
-                 3) Tidak menggulung/mengeriting dan tidak menyempit; helaian tetap rata dengan turgor baik (tidak layu).
-                 4) Tepi daun utuh (tidak sobek/nekrotik).
-                 5) Bagian bawah daun bersih—tidak ada serbuk/jamur (mis. lapisan zaitun khas leaf mold), jaring halus tungau, atau honeydew/sooty mold dari kutu kebul/aphid.
-                 6) Urat daun normal (tidak menebal/menonjol).
-                 7) Pertumbuhan tunas baru tampak segar dan simetris.",
-        "handling": "Pertahankan sanitasi kebun dan pemupukan seimbang.",
-        "source": "-"
-    }
 }
-
-st.markdown("**Penyebab & Gejala:**\n" + "\n".join([f"{i+1}. {x}" for i, x in enumerate(healthy["desc"])]))
-st.markdown("**Penanganan:**\n" + "\n".join([f"{i+1}. {x}" for i, x in enumerate(healthy["handling"])]))
 
 st.title("🩺 Informasi Penyakit Tomat")
 
@@ -88,6 +103,3 @@ st.markdown("""
 <a href="https://www.facebook.com/skywalkr12" target="blank_">Facebook</a>
 </div>
 """, unsafe_allow_html=True)
-
-
-
