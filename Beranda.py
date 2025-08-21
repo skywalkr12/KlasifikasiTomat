@@ -31,7 +31,7 @@ Salah satu produk buatan hasil olahan tomat yang digemari, yaitu saus tomat. Ham
 """)
 
 st.write("""
-https://id.wikipedia.org/wiki/Tomat
+Dikutip dari sumber: https://id.wikipedia.org/wiki/Tomat
 """)
 
 # Footer
@@ -50,6 +50,7 @@ st.markdown("""
 <a href="https://www.facebook.com/skywalkr12" target="blank_">Facebook</a>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
