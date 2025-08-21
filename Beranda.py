@@ -30,6 +30,10 @@ st.write("""
 Salah satu produk buatan hasil olahan tomat yang digemari, yaitu saus tomat. Hampir di berbagai negara memproduksi saus tomat. Saus tomat sendiri banyak dimanfaatkan untuk bumbu tambahan dalam mengolah berbagai masakan. Saus tomat juga dapat disajikan langsung bersama burger, sandwich, dan banyak lagi yang lainnya. Selain untuk tambahan dalam mengolah makanan, tomat juga dapat diolah menjadi jus tomat dan sebagai bahan tambahan untuk membuat sambal.
 """)
 
+st.write("""
+https://id.wikipedia.org/wiki/Tomat
+""")
+
 # Footer
 st.markdown("---")
 
@@ -46,6 +50,7 @@ st.markdown("""
 <a href="https://www.facebook.com/skywalkr12" target="blank_">Facebook</a>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
