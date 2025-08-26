@@ -67,7 +67,7 @@ class ResNet9(ImageClassificationBase):
         self.classifier = nn.Sequential(
             nn.MaxPool2d(4),  # 4x4 -> 1x1
             nn.Flatten(),
-            nn.Dropout(0.3),
+            nn.Dropout(0.2),
             nn.Linear(512, num_diseases)
         )
     def forward(self, xb):
@@ -346,6 +346,7 @@ def show_prediction_and_cam(
     )
 
     return overlay, cam, used_idx, probs_raw
+
 
 
 
