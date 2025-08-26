@@ -13,7 +13,6 @@ import cv2  # untuk gate
 from helper import (
     load_model,
     show_prediction_and_cam,
-    gradcam_on_pil,
     CLASS_NAMES
 )
 
@@ -73,12 +72,7 @@ def _skin_in_mask_ratio_ycrcb(img_rgb, mask01):
 
 def tomato_gate(pil_image,
                 min_mask_frac=0.08, max_mask_frac=0.95, min_solidity=0.25,
-                min_green_ratio=0.12,
-                max_skin_in_mask=0.35):
-    """
-    Gate sederhana (fixed threshold). Return:
-      accept(bool), info(dict: mask_frac, solidity, green_ratio, skin_ratio, reasons[list])
-    """
+                min_green_ratio=0.12, max_skin_in_mask=0.35):
     rgb = np.array(pil_image.convert("RGB"))
     mask = _leaf_mask_lab(rgb)
     frac, sol = _largest_component_stats(mask)
@@ -105,17 +99,14 @@ st.title("🔍 Prediksi Penyakit Tomat + Fitur Grad-CAM")
 if "history" not in st.session_state:
     st.session_state["history"] = []
 
-# ------ Util display: batasi tampilan agar tidak 100% ------
-DISPLAY_CAP = 0.9900  # 99.99% maksimum di UI
-
+DISPLAY_CAP = 0.9999
 def cap_for_display(p: float, cap: float = DISPLAY_CAP) -> float:
     return p if p < cap else cap
-
 def fmt_pct(p: float, cap: float = DISPLAY_CAP, decimals: int = 2) -> str:
     q = cap_for_display(float(p), cap)
     return f"{q*100:.{decimals}f}%"
 
-# ----- Sidebar (pilihan layer seperti awal) -----
+# ----- Sidebar (pilihan layer tetap) -----
 with st.sidebar:
     st.header("Pengaturan Visualisasi")
     target_layer_name = st.selectbox(
@@ -125,14 +116,12 @@ with st.sidebar:
     )
     alpha = st.slider("Transparansi Heatmap (α)", 0.0, 1.0, 0.45, 0.05)
     topk  = st.slider("Jumlah alternatif (Top-k)", 1, min(5, len(CLASS_NAMES)), 3, 1)
-
     st.markdown("---")
     mask_bg = st.checkbox("Mask background (fokus ke daun)", True)
     blend_with_res2 = st.checkbox("Blend dengan res2 (stabilkan semantik)", True)
     erode_border = st.checkbox("Erosi tepi mask 1px (redam pinggiran daun)", True)
     lesion_boost = st.checkbox("Deteksi bintik (aktifkan lesion prior)", True)
     lesion_weight = st.slider("Bobot deteksi bintik (lesion prior)", 0.0, 1.0, 0.5, 0.05)
-
     st.markdown("---")
     show_full_chart = st.checkbox("Tampilkan chart probabilitas lengkap", True)
     sort_desc = st.checkbox("Urutkan chart menurun", True)
@@ -146,13 +135,13 @@ uploaded_file = st.file_uploader("Upload gambar daun tomat", type=["jpg", "jpeg"
 if uploaded_file:
     image = Image.open(uploaded_file).convert("RGB")
 
-    # === Gate: hanya ijinkan daun tomat (ambang default, tanpa advanced gate) ===
+    # Gate sederhana
     accept, info_gate = tomato_gate(image)
     if not accept:
         st.error("❌ Ditolak: bukan daun tomat / kualitas kurang memadai → " + ", ".join(info_gate["reasons"]))
         st.stop()
 
-    # Prediksi + Grad-CAM (helper TIDAK merender apa pun)
+    # Prediksi + Grad-CAM
     overlay, cam, used_idx, probs_raw = show_prediction_and_cam(
         model, image,
         alpha=alpha,
@@ -165,7 +154,7 @@ if uploaded_file:
         erode_border=erode_border
     )
 
-    # === DUA PANEL: KIRI INPUT, KANAN GRAD-CAM ===
+    # Dua panel
     col1, col2 = st.columns([1, 1])
     with col1:
         st.image(image, caption="Input", use_container_width=True)
@@ -181,9 +170,8 @@ if uploaded_file:
             caption=f"Grad-CAM ({target_layer_name}) → {CLASS_NAMES[used_idx]} • Confidence: {fmt_pct(probs_raw[used_idx])}",
             use_container_width=True
         )
-    st.caption("---")
 
-    # Alternatif (Top-k) — teks
+    # Alternatif (Top-k)
     topk_ = min(topk, len(CLASS_NAMES))
     order = np.argsort(-probs_raw)[:topk_]
     st.markdown("**Alternatif (Top-k)**")
@@ -192,7 +180,7 @@ if uploaded_file:
         for i in order
     ]))
 
-    # Chart probabilitas lengkap (opsional)
+    # Chart probabilitas (opsional)
     if show_full_chart:
         st.subheader("📊 Probabilitas per Kelas")
         probs_plot = np.minimum(np.array(probs_raw, dtype=float), DISPLAY_CAP)
