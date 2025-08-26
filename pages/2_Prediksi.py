@@ -157,7 +157,7 @@ if uploaded_file:
     # Dua panel
     col1, col2 = st.columns([1, 1])
     with col1:
-        st.image(image, caption="Input", use_container_width=True)
+        st.image(image, caption="Input", width="stretch")
         st.caption(
             f"Gate: mask_frac={info_gate['mask_frac']:.2f} • "
             f"solidity={info_gate['solidity']:.2f} • "
@@ -168,7 +168,7 @@ if uploaded_file:
         st.image(
             overlay,
             caption=f"Grad-CAM ({target_layer_name}) → {CLASS_NAMES[used_idx]} • Confidence: {fmt_pct(probs_raw[used_idx])}",
-            use_container_width=True
+            width="stretch"
         )
 
     # Alternatif (Top-k)
@@ -215,7 +215,7 @@ if uploaded_file:
 if st.session_state["history"]:
     st.subheader("📜 Histori Prediksi")
     df = pd.DataFrame(st.session_state["history"])
-    st.dataframe(df, use_container_width=True)
+    st.dataframe(df, width="stretch")
     csv = df.to_csv(index=False).encode("utf-8")
     st.download_button("⬇️ Download CSV", csv, "histori_prediksi.csv", "text/csv")
 
