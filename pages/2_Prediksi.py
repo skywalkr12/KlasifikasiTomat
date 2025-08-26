@@ -1,5 +1,5 @@
 # prediksi.py
-# — Gate "tomato-only" (LAB + anti-skin YCrCb) + Prediksi ResNet9 —
+# -- Gate "tomato-only" (LAB + anti-skin, sederhana) + Prediksi + Grad-CAM --
 # Tambahkan ke requirements.txt: opencv-python-headless>=4.9.0
 
 import streamlit as st
@@ -8,12 +8,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from datetime import datetime
-import cv2
+import cv2  # untuk gate
 
 from helper import (
     load_model,
-    predict_image,
-    predict_topk,
+    show_prediction_and_cam,
+    gradcam_on_pil,
     CLASS_NAMES
 )
 
@@ -21,12 +21,6 @@ from helper import (
 def _leaf_mask_lab(img_rgb,
                    L_min=25, L_max=245,
                    a_green_max=-5, a_brown_min=12, b_yellow_min=10):
-    """
-    Mask daun tomat di ruang CIELAB (OpenCV skala 0..255):
-    - hijau: a* relatif negatif
-    - kuning: b* positif (a* netral/positif kecil)
-    - cokelat/nekrosis: a* & b* positif
-    """
     lab = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2LAB)
     L, A, B = lab[..., 0], lab[..., 1], lab[..., 2]
     a = A.astype(np.int16) - 128
@@ -43,10 +37,6 @@ def _leaf_mask_lab(img_rgb,
     return m
 
 def _largest_component_stats(mask01):
-    """
-    Ambil komponen terbesar sebagai kandidat daun.
-    Return: (mask_frac, solidity)
-    """
     num, labels = cv2.connectedComponents(mask01)
     if num <= 1:
         return 0.0, 0.0
@@ -66,7 +56,6 @@ def _largest_component_stats(mask01):
     return float(frac), float(sol)
 
 def _green_ratio_hsv(img_rgb, mask01):
-    """Proporsi piksel hijau (HSV) di dalam mask."""
     hsv = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2HSV)
     H, S, V = hsv[...,0], hsv[...,1], hsv[...,2]
     green = ((H>=35) & (H<=85) & (S>=28) & (V>=40)).astype(np.uint8)
@@ -75,10 +64,8 @@ def _green_ratio_hsv(img_rgb, mask01):
     return float(g_in) / float(area)
 
 def _skin_in_mask_ratio_ycrcb(img_rgb, mask01):
-    """Proporsi piksel berkarakter kulit (YCrCb) di dalam mask (untuk menolak wajah)."""
     ycrcb = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2YCrCb)
     Y, Cr, Cb = ycrcb[...,0], ycrcb[...,1], ycrcb[...,2]
-    # rentang kulit yang umum (longgar)
     skin = ((Cr>=135) & (Cr<=180) & (Cb>=85) & (Cb<=135)).astype(np.uint8)
     s_in = int((skin & mask01).sum())
     area = int(mask01.sum()) + 1
@@ -86,11 +73,10 @@ def _skin_in_mask_ratio_ycrcb(img_rgb, mask01):
 
 def tomato_gate(pil_image,
                 min_mask_frac=0.08, max_mask_frac=0.95, min_solidity=0.25,
-                min_green_ratio=0.12,    # bukti hijau minimal
-                max_skin_in_mask=0.35):  # jika skin>35% di dalam mask → tolak
+                min_green_ratio=0.12,
+                max_skin_in_mask=0.35):
     """
-    Kriteria sederhana (fixed threshold).
-    Return:
+    Gate sederhana (fixed threshold). Return:
       accept(bool), info(dict: mask_frac, solidity, green_ratio, skin_ratio, reasons[list])
     """
     rgb = np.array(pil_image.convert("RGB"))
@@ -113,8 +99,8 @@ def tomato_gate(pil_image,
     }
 # ========== END Gate ==========
 
-st.set_page_config(page_title="Prediksi Penyakit Tomat (tanpa Grad-CAM)", layout="wide")
-st.title("🔍 Prediksi Penyakit Tomat (tanpa Grad-CAM)")
+st.set_page_config(page_title="Prediksi Penyakit Tomat + Grad-CAM", layout="wide")
+st.title("🔍 Prediksi Penyakit Tomat + Fitur Grad-CAM")
 
 if "history" not in st.session_state:
     st.session_state["history"] = []
@@ -129,10 +115,25 @@ def fmt_pct(p: float, cap: float = DISPLAY_CAP, decimals: int = 2) -> str:
     q = cap_for_display(float(p), cap)
     return f"{q*100:.{decimals}f}%"
 
-# ----- Sidebar (sederhana) -----
+# ----- Sidebar (pilihan layer seperti awal) -----
 with st.sidebar:
-    st.header("Pengaturan Prediksi")
+    st.header("Pengaturan Visualisasi")
+    target_layer_name = st.selectbox(
+        "Layer target Grad-CAM",
+        options=["conv4_prepool", "conv3_prepool", "conv2_prepool", "res2"],
+        index=0
+    )
+    alpha = st.slider("Transparansi Heatmap (α)", 0.0, 1.0, 0.45, 0.05)
     topk  = st.slider("Jumlah alternatif (Top-k)", 1, min(5, len(CLASS_NAMES)), 3, 1)
+
+    st.markdown("---")
+    mask_bg = st.checkbox("Mask background (fokus ke daun)", True)
+    blend_with_res2 = st.checkbox("Blend dengan res2 (stabilkan semantik)", True)
+    erode_border = st.checkbox("Erosi tepi mask 1px (redam pinggiran daun)", True)
+    lesion_boost = st.checkbox("Deteksi bintik (aktifkan lesion prior)", True)
+    lesion_weight = st.slider("Bobot deteksi bintik (lesion prior)", 0.0, 1.0, 0.5, 0.05)
+
+    st.markdown("---")
     show_full_chart = st.checkbox("Tampilkan chart probabilitas lengkap", True)
     sort_desc = st.checkbox("Urutkan chart menurun", True)
 
@@ -145,16 +146,26 @@ uploaded_file = st.file_uploader("Upload gambar daun tomat", type=["jpg", "jpeg"
 if uploaded_file:
     image = Image.open(uploaded_file).convert("RGB")
 
-    # === Gate: hanya ijinkan daun tomat ===
-    accept, info_gate = tomato_gate(image)  # gunakan ambang default (gate biasa)
+    # === Gate: hanya ijinkan daun tomat (ambang default, tanpa advanced gate) ===
+    accept, info_gate = tomato_gate(image)
     if not accept:
         st.error("❌ Ditolak: bukan daun tomat / kualitas kurang memadai → " + ", ".join(info_gate["reasons"]))
         st.stop()
 
-    # === Prediksi ===
-    top1_label, probs_raw, _ = predict_image(model, image)
+    # Prediksi + Grad-CAM (helper TIDAK merender apa pun)
+    overlay, cam, used_idx, probs_raw = show_prediction_and_cam(
+        model, image,
+        alpha=alpha,
+        topk=topk,
+        target_layer_name=target_layer_name,
+        include_brown=True,
+        lesion_boost=lesion_boost, lesion_weight=lesion_weight,
+        mask_bg=mask_bg,
+        blend_with_res2=blend_with_res2,
+        erode_border=erode_border
+    )
 
-    # Panel tampilan
+    # === DUA PANEL: KIRI INPUT, KANAN GRAD-CAM ===
     col1, col2 = st.columns([1, 1])
     with col1:
         st.image(image, caption="Input", use_container_width=True)
@@ -165,17 +176,21 @@ if uploaded_file:
             f"skin={info_gate['skin_ratio']:.2f}"
         )
     with col2:
-        st.subheader("Hasil Prediksi")
-        st.markdown(f"**Prediksi:** {top1_label}")
-        st.markdown(f"**Confidence (display):** {fmt_pct(float(np.max(probs_raw)))}")
+        st.image(
+            overlay,
+            caption=f"Grad-CAM ({target_layer_name}) → {CLASS_NAMES[used_idx]} • Confidence: {fmt_pct(probs_raw[used_idx])}",
+            use_container_width=True
+        )
+    st.caption("---")
 
-        # Alternatif (Top-k)
-        st.markdown("**Alternatif (Top-k)**")
-        topk_list = predict_topk(model, image, k=topk)
-        st.markdown("\n".join([
-            f"{'★' if name==top1_label else '•'} {name}: {fmt_pct(prob)}"
-            for (name, prob) in topk_list
-        ]))
+    # Alternatif (Top-k) — teks
+    topk_ = min(topk, len(CLASS_NAMES))
+    order = np.argsort(-probs_raw)[:topk_]
+    st.markdown("**Alternatif (Top-k)**")
+    st.markdown("\n".join([
+        f"{'★' if i==used_idx else '•'} {CLASS_NAMES[i]}: {fmt_pct(probs_raw[i])}"
+        for i in order
+    ]))
 
     # Chart probabilitas lengkap (opsional)
     if show_full_chart:
@@ -186,7 +201,7 @@ if uploaded_file:
         ax.barh([CLASS_NAMES[i] for i in idxs], probs_plot[idxs], height=0.6)
         ax.invert_yaxis()
         ax.set_xlim(0, 1)
-        ax.set_xlabel("Probabilitas")
+        ax.set_xlabel("Probabilitas (dibatasi < 100%)")
         ax.set_ylabel("Kelas")
         st.pyplot(fig)
 
@@ -194,8 +209,14 @@ if uploaded_file:
     st.session_state["history"].append({
         "Tanggal": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "Nama File": uploaded_file.name,
-        "Prediksi": top1_label,
-        "Probabilitas (display)": fmt_pct(float(np.max(probs_raw))),
+        "Prediksi": CLASS_NAMES[used_idx],
+        "Probabilitas (display)": fmt_pct(probs_raw[used_idx]),
+        "Layer": target_layer_name,
+        "MaskBG": mask_bg,
+        "BlendRes2": blend_with_res2,
+        "ErodeBorder": erode_border,
+        "LesionBoost": lesion_boost,
+        "LesionWeight": lesion_weight,
         "Gate_mask_frac": f"{info_gate['mask_frac']:.2f}",
         "Gate_solidity": f"{info_gate['solidity']:.2f}",
         "Gate_green": f"{info_gate['green_ratio']:.2f}",
@@ -224,4 +245,3 @@ st.markdown("""
 <a href="https://www.facebook.com/skywalkr12" target="blank_">Facebook</a>
 </div>
 """, unsafe_allow_html=True)
-
