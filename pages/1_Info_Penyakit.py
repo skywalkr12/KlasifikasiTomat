@@ -151,7 +151,7 @@ diseases = {
             "Jika muncul: cabut tanaman terinfeksi dini; fokus pada kontrol vektor & kebersihan persemaian."
         ],
         "severity": "Ekstrem",
-        "image": "Tomato Yellow Leaf Curl Virus (TYLCV).JPG",
+        "image": "Tomato Yellow Leaf Curl Virus (TYLCV).jpg",
     }
 }
 
@@ -230,6 +230,7 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
 
 
 
