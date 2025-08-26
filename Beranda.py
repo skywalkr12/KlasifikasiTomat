@@ -10,7 +10,7 @@ st.image(logo, width=100)
 st.markdown("<h1 style='color:#b22222;'>🍅 Klasifikasi Penyakit Tanaman Tomat</h1>", unsafe_allow_html=True)
 
 st.write("""
-Selamat datang di aplikasi deteksi penyakit tomat berbasis Deep Learning.
+Selamat datang di aplikasi klasifikasi penyakit tanaman tomat berbasis Deep Learning.
 Gunakan menu di sidebar untuk membaca informasi terkait penyakit tanaman tomat dan mengklasifikasi penyakit tanaman tomat. 
 """)
 
@@ -47,6 +47,7 @@ st.markdown("""
 <a href="https://www.facebook.com/skywalkr12" target="blank_">Facebook</a>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
