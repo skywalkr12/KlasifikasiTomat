@@ -135,14 +135,6 @@ with st.sidebar:
     show_full_chart = st.checkbox("Tampilkan chart probabilitas lengkap", True)
     sort_desc = st.checkbox("Urutkan chart menurun", True)
 
-    st.markdown("---")
-    with st.expander("⚙️ Advanced Gate (opsional)"):
-        min_mask_frac = st.slider("Min mask frac", 0.0, 1.0, 0.08, 0.01)
-        max_mask_frac = st.slider("Max mask frac", 0.1, 1.0, 0.95, 0.01)
-        min_solidity  = st.slider("Min solidity", 0.0, 1.0, 0.25, 0.01)
-        min_green_ratio = st.slider("Min green ratio", 0.0, 0.6, 0.12, 0.01)
-        max_skin_in_mask = st.slider("Max skin ratio", 0.0, 1.0, 0.35, 0.01)
-
 # ----- Model -----
 model = load_model(weights_path="model/resnet9(99,16).pt")
 
@@ -237,3 +229,4 @@ st.markdown("""
 <a href="https://www.facebook.com/skywalkr12" target="blank_">Facebook</a>
 </div>
 """, unsafe_allow_html=True)
+
