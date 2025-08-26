@@ -86,9 +86,10 @@ def _skin_in_mask_ratio_ycrcb(img_rgb, mask01):
 
 def tomato_gate(pil_image,
                 min_mask_frac=0.08, max_mask_frac=0.95, min_solidity=0.25,
-                min_green_ratio=0.12,
-                max_skin_in_mask=0.35):
+                min_green_ratio=0.12,    # bukti hijau minimal
+                max_skin_in_mask=0.35):  # jika skin>35% di dalam mask → tolak
     """
+    Kriteria sederhana (fixed threshold).
     Return:
       accept(bool), info(dict: mask_frac, solidity, green_ratio, skin_ratio, reasons[list])
     """
@@ -112,14 +113,14 @@ def tomato_gate(pil_image,
     }
 # ========== END Gate ==========
 
-st.set_page_config(page_title="Prediksi Penyakit Tomat", layout="wide")
-st.title("🔍 Prediksi Penyakit Tomat")
+st.set_page_config(page_title="Prediksi Penyakit Tomat (tanpa Grad-CAM)", layout="wide")
+st.title("🔍 Prediksi Penyakit Tomat (tanpa Grad-CAM)")
 
 if "history" not in st.session_state:
     st.session_state["history"] = []
 
 # ------ Util display: batasi tampilan agar tidak 100% ------
-DISPLAY_CAP = 0.9900  # 99.99% maksimum di UI
+DISPLAY_CAP = 0.9999  # 99.99% maksimum di UI
 
 def cap_for_display(p: float, cap: float = DISPLAY_CAP) -> float:
     return p if p < cap else cap
@@ -128,7 +129,7 @@ def fmt_pct(p: float, cap: float = DISPLAY_CAP, decimals: int = 2) -> str:
     q = cap_for_display(float(p), cap)
     return f"{q*100:.{decimals}f}%"
 
-# ----- Sidebar -----
+# ----- Sidebar (sederhana) -----
 with st.sidebar:
     st.header("Pengaturan Prediksi")
     topk  = st.slider("Jumlah alternatif (Top-k)", 1, min(5, len(CLASS_NAMES)), 3, 1)
@@ -145,13 +146,7 @@ if uploaded_file:
     image = Image.open(uploaded_file).convert("RGB")
 
     # === Gate: hanya ijinkan daun tomat ===
-    accept, info_gate = tomato_gate(
-        image,
-        min_mask_frac=min_mask_frac, max_mask_frac=max_mask_frac,
-        min_solidity=min_solidity,
-        min_green_ratio=min_green_ratio,
-        max_skin_in_mask=max_skin_in_mask
-    )
+    accept, info_gate = tomato_gate(image)  # gunakan ambang default (gate biasa)
     if not accept:
         st.error("❌ Ditolak: bukan daun tomat / kualitas kurang memadai → " + ", ".join(info_gate["reasons"]))
         st.stop()
@@ -229,4 +224,3 @@ st.markdown("""
 <a href="https://www.facebook.com/skywalkr12" target="blank_">Facebook</a>
 </div>
 """, unsafe_allow_html=True)
-
