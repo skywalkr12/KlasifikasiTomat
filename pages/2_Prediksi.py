@@ -120,7 +120,7 @@ if "history" not in st.session_state:
     st.session_state["history"] = []
 
 # ------ Util display: batasi tampilan agar tidak 100% ------
-DISPLAY_CAP = 0.9999  # 99.99% maksimum di UI
+DISPLAY_CAP = 0.9900  # 99.99% maksimum di UI
 
 def cap_for_display(p: float, cap: float = DISPLAY_CAP) -> float:
     return p if p < cap else cap
@@ -224,3 +224,4 @@ st.markdown("""
 <a href="https://www.facebook.com/skywalkr12" target="blank_">Facebook</a>
 </div>
 """, unsafe_allow_html=True)
+
