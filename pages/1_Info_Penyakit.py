@@ -25,7 +25,7 @@ diseases = {
             "Monitoring hama mingguan (cek bawah daun); kendalikan bila ambang terlampaui."
         ],
         "severity": "—",
-        "image": "Healthy.JPG",
+        "image": "Healthy.jpg",
     },
 
     # ---------- 1) Spider mites — RENDAH → SEDANG ----------
@@ -39,7 +39,7 @@ diseases = {
             "Jika sudah ada: semprot air kuat ke bawah daun; sabun insektisida/minyak hortikultura; mitisida selektif atau predator (mis. *Phytoseiulus*)."
         ],
         "severity": "Rendah → Sedang",
-        "image": "Spider Mites.JPG",
+        "image": "Spider Mites.jpg",
     },
 
     # ---------- 2) Leaf mold — RENDAH → SEDANG ----------
@@ -53,7 +53,7 @@ diseases = {
             "Jika muncul: buang daun terinfeksi; fungisida protektan (klorotalonil/mankozeb/tembaga) sesuai label."
         ],
         "severity": "Rendah → Sedang",
-        "image": "Leaf Mold.JPG",
+        "image": "Leaf Mold.jpg",
     },
 
     # ---------- 3) Septoria leaf spot — SEDANG ----------
@@ -67,7 +67,7 @@ diseases = {
             "Jika muncul: protektan (klorotalonil/mankozeb/tembaga) terjadwal; buang daun bawah terinfeksi."
         ],
         "severity": "Sedang",
-        "image": "Septoria Leaf Spot.JPG",
+        "image": "Septoria Leaf Spot.jpg",
     },
 
     # ---------- 4) TMV/ToMV — SEDANG → TINGGI ----------
@@ -95,7 +95,7 @@ diseases = {
             "Jika muncul: semprot tembaga + mankozeb sebagai protektan (efektivitas bervariasi; waspadai resistensi)."
         ],
         "severity": "Sedang → Tinggi",
-        "image": "Bacterial Spot.JPG",
+        "image": "Bacterial Spot.jpg",
     },
 
     # ---------- 6) Target spot — TINGGI ----------
@@ -109,7 +109,7 @@ diseases = {
             "Jika muncul: protektan (klorotalonil/tembaga/mankozeb) interval 10–14 hari sesuai label."
         ],
         "severity": "Tinggi",
-        "image": "Target Spot.JPG",
+        "image": "Target Spot.jpg",
     },
 
     # ---------- 7) Early blight — TINGGI ----------
@@ -123,7 +123,7 @@ diseases = {
             "Jika muncul: protektan/sistemik sejak dini dan terjadwal (mis. klorotalonil/mankozeb sesuai label)."
         ],
         "severity": "Tinggi",
-        "image": "Early Blight.JPG",
+        "image": "Early Blight.jpg",
     },
 
     # ---------- 8) Late blight — SANGAT TINGGI ----------
@@ -137,7 +137,7 @@ diseases = {
             "Jika parah: singkirkan tanaman sangat terinfeksi untuk memutus siklus."
         ],
         "severity": "Sangat Tinggi",
-        "image": "Late Blight.JPG",
+        "image": "Late Blight.jpg",
     },
 
     # ---------- 9) TYLCV — EKSTREM ----------
@@ -230,6 +230,7 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
 
 
 
