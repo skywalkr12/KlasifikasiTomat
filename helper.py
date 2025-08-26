@@ -93,8 +93,12 @@ CLASS_NAMES = [
 ]
 
 # ========= Transform (samakan dengan training!) =========
-transform = transforms.Compose([
+train_tfms = transforms.Compose([
     transforms.Resize((256, 256)),
+    transforms.RandomHorizontalFlip(p=0.3),
+    transforms.RandomVerticalFlip(p=0.3),
+    transforms.RandomRotation(degrees=30),
+    transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
     transforms.ToTensor()
 ])
 
@@ -130,3 +134,4 @@ def predict_topk(model, image: Image.Image, k: int = 3):
     k = max(1, min(k, len(CLASS_NAMES)))
     idxs = np.argsort(-probs)[:k]
     return [(CLASS_NAMES[i], float(probs[i])) for i in idxs]
+
