@@ -342,6 +342,7 @@ if st.session_state["history"]:
 
 st.info( "Perlu diingat: Ini adalah alat diagnosis dengan bantuan Kecerdasan Buatan dan sebaiknya digunakan hanya sebagai panduan. Untuk diagnosis konklusif, konsultasikan dengan ahli patologi tanaman profesional."
 )
+st.markdown("---")
 st.markdown(
     """
 <div style='text-align:center; font-size:14px;'>
@@ -353,6 +354,7 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
 
 
 
