@@ -182,7 +182,7 @@ def _make_color_overlay(pil_img, masks, alpha=0.45):
 
 # ========== Streamlit UI ==========
 st.set_page_config(page_title="Prediksi Penyakit Tomat + Deteksi Kekuningan/Kelayuan", layout="wide")
-st.title("🟡 Deteksi Kekuningan & Kelayuan + 🔍 Prediksi Penyakit Tomat")
+st.title("🌿 Deteksi Kekuningan & Kelayuan + 🔍 Prediksi Penyakit Tomat")
 
 if "history" not in st.session_state:
     st.session_state["history"] = []
@@ -194,36 +194,24 @@ def fmt_pct(p: float, cap: float = DISPLAY_CAP, decimals: int = 2) -> str:
     q = cap_for_display(float(p), cap)
     return f"{q*100:.{decimals}f}%"
 
-# ----- CUSTOM CSS for colored metrics -----
-st.markdown("""
-<style>
-    /* Umum untuk nilai metric */
-    .st-emotion-cache-1f06a9k.ef3psqc12 > div[data-testid="stMetricValue"] {
-        font-weight: normal !important; /* Memastikan tidak bold */
-    }
-
-    /* Rasio Kuning */
-    div[data-testid="stMetricLabel"]:has(div[title="Rasio Kuning"]) + div > div[data-testid="stMetricValue"] {
-        color: #FFD700; /* Kuning emas */
-    }
-
-    /* Rasio Cokelat */
-    div[data-testid="stMetricLabel"]:has(div[title="Rasio Cokelat"]) + div > div[data-testid="stMetricValue"] {
-        color: #A0522D; /* Sienn (Cokelat) */
-    }
-
-    /* Solidity (kompaksi) */
-    div[data-testid="stMetricLabel"]:has(div[title="Solidity (kompaksi)"]) + div > div[data-testid="stMetricValue"] {
-        color: #404040; /* Abu-abu gelap/kehitaman */
-    }
-
-    /* Roughness (tepi) */
-    div[data-testid="stMetricLabel"]:has(div[title="Roughness (tepi)"]) + div > div[data-testid="stMetricValue"] {
-        color: #3CB371; /* Medium Sea Green (Hijau) */
-    }
-</style>
-""", unsafe_allow_html=True)
-
+# --- FUNGSI BARU UNTUK METRIK BERWARNA (LEBIH ANDAL) ---
+def colored_metric(label, value, color):
+    st.markdown(
+        f"""
+        <div style="
+            display: flex;
+            flex-direction: column;
+            border: 1px solid rgba(49, 51, 63, 0.2);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            background-color: #FFFFFF;
+            overflow-wrap: break-word;">
+            <div style="font-size: 0.875rem; color: rgba(49, 51, 63, 0.6); margin-bottom: 0.25rem;">{label}</div>
+            <div style="font-size: 1.5rem; color: {color}; font-weight: normal;">{value}</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
 # ----- Sidebar -----
 with st.sidebar:
@@ -294,14 +282,18 @@ if uploaded_file:
         with st.container(border=True):
             mcol1, mcol2, mcol3, mcol4 = st.columns(4)
             with mcol1:
-                st.metric("Rasio Kuning", fmt_pct(color_stats["yellow_ratio"]))
+                # REVISI: Menggunakan fungsi colored_metric
+                colored_metric("Rasio Kuning", fmt_pct(color_stats["yellow_ratio"]), "#D1B000")
             with mcol2:
-                st.metric("Rasio Cokelat", fmt_pct(color_stats["brown_ratio"]))
+                # REVISI: Menggunakan fungsi colored_metric
+                colored_metric("Rasio Cokelat", fmt_pct(color_stats["brown_ratio"]), "#A0522D")
             with mcol3:
-                st.metric("Solidity (kompaksi)", f"{shape_stats['solidity']:.2f}")
+                # REVISI: Menggunakan fungsi colored_metric
+                colored_metric("Solidity (kompaksi)", f"{shape_stats['solidity']:.2f}", "#404040")
             with mcol4:
-                st.metric("Roughness (tepi)", f"{shape_stats['roughness']:.2f}")
-
+                # REVISI: Menggunakan fungsi colored_metric
+                colored_metric("Roughness (tepi)", f"{shape_stats['roughness']:.2f}", "#3CB371")
+        
         st.markdown(" ")
 
         pcol1, pcol2 = st.columns(2)
