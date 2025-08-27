@@ -196,6 +196,15 @@ def fmt_pct(p: float, cap: float = DISPLAY_CAP, decimals: int = 2) -> str:
 
 # ----- Sidebar -----
 with st.sidebar:
+    # --- TAMBAHAN: Panduan Pengguna ---
+    st.header("💡 Panduan Penggunaan")
+    st.markdown("""
+    - **Unggah Gambar:** Siapkan foto daun tomat Anda (format JPG, JPEG, PNG).
+    - **Lihat Hasil:** Model akan otomatis menganalisis dan menampilkan potensi penyakit setelah gambar diunggah.
+    """)
+    st.info("Pastikan gambar hanya menampilkan satu daun tomat dalam kondisi pencahayaan yang baik untuk hasil terbaik.", icon="⚠️")
+    st.markdown("---")
+    
     st.header("Pengaturan Tampilan")
     topk  = st.slider("Jumlah alternatif (Top-k)", 1, min(5, len(CLASS_NAMES)), 3, 1)
     st.markdown("---")
@@ -246,31 +255,33 @@ if uploaded_file:
             use_container_width=True
         )
 
-    # Ringkasan metrik kekuningan & kelayuan
-    st.subheader("📊 Deteksi Kekuningan & Kelayuan")
-    st.write("""
-Analisis kekuningan/kelayuan hanya membantu memetakan gejala visual, bukan diagnosis final.
-Diperlukan pemeriksaan lapang lebih lanjut.
-""")
-    mcol1, mcol2, mcol3, mcol4 = st.columns(4)
-    with mcol1:
-        st.metric("Rasio Kuning", fmt_pct(color_stats["yellow_ratio"]))
-    with mcol2:
-        st.metric("Rasio Cokelat", fmt_pct(color_stats["brown_ratio"]))
-    with mcol3:
-        st.metric("Solidity (kompaksi)", f"{shape_stats['solidity']:.2f}")
-    with mcol4:
-        st.metric("Roughness (tepi)", f"{shape_stats['roughness']:.2f}")
+    # --- MODIFIKASI: Menambahkan border di sekeliling hasil analisis ---
+    with st.container(border=True):
+        st.subheader("📊 Deteksi Kekuningan & Kelayuan")
+        st.write("""
+        Analisis kekuningan/kelayuan hanya membantu memetakan gejala visual, bukan diagnosis final. 
+        Diperlukan pemeriksaan lapang lebih lanjut.
+        """)
+        mcol1, mcol2, mcol3, mcol4 = st.columns(4)
+        with mcol1:
+            st.metric("Rasio Kuning", fmt_pct(color_stats["yellow_ratio"]))
+        with mcol2:
+            st.metric("Rasio Cokelat", fmt_pct(color_stats["brown_ratio"]))
+        with mcol3:
+            st.metric("Solidity (kompaksi)", f"{shape_stats['solidity']:.2f}")
+        with mcol4:
+            st.metric("Roughness (tepi)", f"{shape_stats['roughness']:.2f}")
 
-    pcol1, pcol2 = st.columns(2)
-    with pcol1:
-        st.markdown(f"**Skor Kekuningan (0–1):** `{chlorosis_score:.2f}`")
-        st.progress(min(max(chlorosis_score,0.0),1.0))
-    with pcol2:
-        st.markdown(f"**Skor Kelayuan (0–1):** `{wilt_score:.2f}`")
-        st.progress(min(max(wilt_score,0.0),1.0))
+        pcol1, pcol2 = st.columns(2)
+        with pcol1:
+            st.markdown(f"**Skor Kekuningan (0–1):** `{chlorosis_score:.2f}`")
+            st.progress(min(max(chlorosis_score,0.0),1.0))
+        with pcol2:
+            st.markdown(f"**Skor Kelayuan (0–1):** `{wilt_score:.2f}`")
+            st.progress(min(max(wilt_score,0.0),1.0))
     
     # Alternatif (Top-k)
+    st.markdown(" ") # Memberi sedikit spasi
     topk_ = min(topk, len(CLASS_NAMES))
     order = np.argsort(-probs_raw)[:topk_]
     st.markdown("**Alternatif (Top-k)**")
@@ -327,10 +338,3 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
-
-
-
-
-
-
-
