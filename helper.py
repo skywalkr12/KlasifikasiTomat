@@ -1,262 +1,347 @@
-# prediksi.py
-# -- Gate "tomato-only" sudah terintegrasi (LAB + anti-skin YCrCb) --
-# -- Tambahkan ke requirements.txt: opencv-python-headless>=4.9.0 --
+# helper.py
+# — ResNet9-variant + Grad-CAM + Leaf&Brown Mask + Lesion Prior —
+# Tidak ada rendering Streamlit di file ini. Semua tampilan diatur dari prediksi.py.
 
-import streamlit as st
+import torch, numpy as np
+import torch.nn as nn
+import torch.nn.functional as F
+import torchvision.transforms as transforms
 from PIL import Image
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
-from datetime import datetime
-import cv2  # <— untuk gate
+from matplotlib import cm
 
-from helper import (
-    load_model,
-    show_prediction_and_cam,
-    CLASS_NAMES
-)
+# ========= Util umum =========
+def accuracy(outputs, labels):
+    _, preds = torch.max(outputs, dim=1)
+    return torch.tensor(torch.sum(preds == labels).item() / len(preds))
 
-# ========== Gate TOMATO-ONLY (LAB + anti-skin, ringkas) ==========
-def _leaf_mask_lab(img_rgb,
-                   L_min=25, L_max=245,
-                   a_green_max=-5, a_brown_min=12, b_yellow_min=10):
-    """
-    Mask daun tomat di ruang CIELAB (OpenCV skala 0..255):
-    - hijau: a* relatif negatif
-    - kuning: b* positif (a* netral/positif kecil)
-    - cokelat/nekrosis: a* & b* positif
-    """
-    lab = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2LAB)
-    L, A, B = lab[..., 0], lab[..., 1], lab[..., 2]
-    a = A.astype(np.int16) - 128
-    b = B.astype(np.int16) - 128
+class SimpleResidualBlock(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.conv1 = nn.Conv2d(3, 3, 3, 1, 1)
+        self.relu1 = nn.ReLU(inplace=False)
+        self.conv2 = nn.Conv2d(3, 3, 3, 1, 1)
+        self.relu2 = nn.ReLU(inplace=False)
+    def forward(self, x):
+        out = self.relu1(self.conv1(x))
+        out = self.conv2(out)
+        return self.relu2(out) + x
 
-    green  = (a <= a_green_max) & (L >= L_min) & (L <= L_max)
-    yellow = (a >  a_green_max) & (a < a_brown_min) & (b >= b_yellow_min) & (L >= L_min) & (L <= L_max)
-    brown  = (a >= a_brown_min) & (b >= b_yellow_min) & (L >= L_min)
+class ImageClassificationBase(nn.Module):
+    def training_step(self, batch):
+        images, labels = batch
+        out = self(images)
+        return F.cross_entropy(out, labels)
+    def validation_step(self, batch):
+        images, labels = batch
+        out = self(images)
+        loss = F.cross_entropy(out, labels)
+        acc = accuracy(out, labels)
+        return {'val_loss': loss.detach(), 'val_acc': acc}
+    def validation_epoch_end(self, outputs):
+        losses = torch.stack([x['val_loss'] for x in outputs]).mean()
+        accs   = torch.stack([x['val_acc']  for x in outputs]).mean()
+        return {'val_loss': losses.item(), 'val_acc': accs.item()}
 
-    m = (green | yellow | brown).astype(np.uint8)
-    m = cv2.morphologyEx(m, cv2.MORPH_OPEN,  np.ones((5,5), np.uint8))
-    m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, np.ones((7,7), np.uint8))
-    m = cv2.dilate(m, np.ones((3,3), np.uint8), 1)
+def ConvBlock(in_channels, out_channels, pool=False):
+    layers = [
+        nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
+        nn.BatchNorm2d(out_channels),
+        nn.ReLU(inplace=False)
+    ]
+    if pool:
+        layers.append(nn.MaxPool2d(4))
+    return nn.Sequential(*layers)
+
+# ========= Model (ResNet9-variant) =========
+class ResNet9(ImageClassificationBase):
+    def __init__(self, num_diseases=10, in_channels=3):
+        super().__init__()
+        self.conv1 = ConvBlock(in_channels, 64)               # 256
+        self.conv2 = ConvBlock(64, 128, pool=True)            # 64
+        self.res1  = nn.Sequential(ConvBlock(128, 128),
+                                   ConvBlock(128, 128))
+        self.conv3 = ConvBlock(128, 256, pool=True)           # 16
+        self.conv4 = ConvBlock(256, 512, pool=True)           # 4
+        self.res2  = nn.Sequential(ConvBlock(512, 512),
+                                   ConvBlock(512, 512))
+        self.classifier = nn.Sequential(
+            nn.MaxPool2d(4),  # 4x4 -> 1x1
+            nn.Flatten(),
+            nn.Dropout(0.2),
+            nn.Linear(512, num_diseases)
+        )
+    def forward(self, xb):
+        out = self.conv1(xb)          # 256
+        out = self.conv2(out)         # 64
+        out = self.res1(out) + out
+        out = self.conv3(out)         # 16
+        out = self.conv4(out)         # 4
+        out = self.res2(out) + out
+        return self.classifier(out)
+
+# ========= Daftar kelas =========
+CLASS_NAMES = [
+ 'Tomato_Bacterial_spot',
+ 'Tomato_Early_blight',
+ 'Tomato_Late_blight',
+ 'Tomato_Leaf_Mold',
+ 'Tomato_Septoria_leaf_spot',
+ 'Tomato_Spider_mites_Two_spotted_spider_mite',
+ 'Tomato_Target_Spot',
+ 'Tomato_Tomato_YellowLeaf__Curl_Virus',
+ 'Tomato_Tomato_mosaic_virus',
+ 'Tomato_healthy'
+]
+
+# ========= Transform (samakan dengan training!) =========
+transform = transforms.Compose([
+    transforms.Resize((256, 256)),
+    transforms.ToTensor()
+])
+
+# ========= Loader =========
+def load_model(weights_path: str = "model/resnet9(99,16).pt", cache_bust: str = "v1"):
+    model = ResNet9(num_diseases=len(CLASS_NAMES), in_channels=3)
+    sd = torch.load(weights_path, map_location="cpu")
+    if isinstance(sd, dict) and "model_state_dict" in sd:
+        sd = sd["model_state_dict"]
+    sd = { (k.replace("module.","") if k.startswith("module.") else k): v for k,v in sd.items() }
+    model.load_state_dict(sd, strict=True)
+    # Non-inplace ReLU agar aman untuk backward hook Grad-CAM
+    for m in model.modules():
+        if isinstance(m, nn.ReLU):
+            m.inplace = False
+    model.eval()
+    return model
+
+# ========= Prediksi (RAW, tanpa clipping) =========
+@torch.no_grad()
+def predict_image(model, image: Image.Image):
+    x = transform(image).unsqueeze(0)
+    out = model(x)
+    probs_raw = torch.softmax(out[0], dim=0).cpu().numpy()  # sum=1
+    idx = int(np.argmax(probs_raw))
+    return CLASS_NAMES[idx], probs_raw, out[0].detach().cpu().numpy()
+
+# ========= CAM util =========
+def _normalize_cam(cam: torch.Tensor):
+    cam = torch.relu(cam)
+    mn, mx = cam.min(), cam.max()
+    if (mx - mn) > 1e-8: cam = (cam - mn) / (mx - mn)
+    else:                cam = torch.zeros_like(cam)
+    return cam
+
+def _upsample_cam(cam: torch.Tensor, size_hw: tuple[int,int]) -> torch.Tensor:
+    cam = cam[None, None, ...]
+    cam = F.interpolate(cam, size=size_hw, mode="bilinear", align_corners=False)
+    return cam[0,0]
+
+def _overlay(pil_img: Image.Image, cam_hw01: np.ndarray, alpha: float = 0.45) -> Image.Image:
+    base = np.asarray(pil_img.convert("RGB")).astype(np.float32) / 255.0
+    cam_hw01 = np.clip(cam_hw01, 0.0, 1.0)
+    heat = cm.get_cmap("jet")(cam_hw01)[..., :3]
+    out = (1 - alpha) * base + alpha * heat
+    out = np.clip(out, 0, 1)
+    return Image.fromarray((out * 255).astype(np.uint8))
+
+def _erode_min(mask: np.ndarray, k: int = 3, iters: int = 1) -> np.ndarray:
+    if k <= 1 or iters <= 0: return mask
+    m = mask.copy()
+    for _ in range(iters):
+        pad = k // 2
+        padded = np.pad(m, ((pad,pad),(pad,pad)), mode="edge")
+        out = np.zeros_like(m)
+        H, W = m.shape
+        for i in range(H):
+            for j in range(W):
+                out[i,j] = np.min(padded[i:i+k, j:j+k])
+        m = out
     return m
 
-def _largest_component_stats(mask01):
+# ========= Mask daun (Green+Yellow+Brown) =========
+def _leaf_mask_hsv_with_brown(pil_img: Image.Image) -> np.ndarray:
     """
-    Ambil komponen terbesar sebagai kandidat daun.
-    Return: (mask_frac, solidity)
+    HSV 0..255:
+      hijau:   H∈[60,130], S≥60, V≥40
+      kuning:  H∈[35,59],  S≥60, V≥50
+      cokelat: H∈[8,35],   S≥50, V∈[20,200]
+      cokelat gelap: H≤8,  S≥60, V∈[10,180]
     """
-    num, labels = cv2.connectedComponents(mask01)
-    if num <= 1:
-        return 0.0, 0.0
-    best, area = 0, 0
-    for lb in range(1, num):
-        a = int((labels == lb).sum())
-        if a > area:
-            best, area = lb, a
-    comp = (labels == best).astype(np.uint8)
-    frac = comp.mean()
-    cnts, _ = cv2.findContours(comp, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    if not cnts:
-        return float(frac), 0.0
-    cnt = max(cnts, key=cv2.contourArea)
-    hull = cv2.convexHull(cnt)
-    sol = float(cv2.contourArea(cnt) / (cv2.contourArea(hull) + 1e-6))
-    return float(frac), float(sol)
-
-def _green_ratio_hsv(img_rgb, mask01):
-    """Proporsi piksel hijau (HSV) di dalam mask."""
-    hsv = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2HSV)
+    hsv = np.asarray(pil_img.convert("HSV")).astype(np.int32)
     H, S, V = hsv[...,0], hsv[...,1], hsv[...,2]
-    green = ((H>=35) & (H<=85) & (S>=28) & (V>=40)).astype(np.uint8)
-    g_in = int((green & mask01).sum())
-    area = int(mask01.sum()) + 1
-    return float(g_in) / float(area)
+    green  = (H>=60) & (H<=130) & (S>=60) & (V>=40)
+    yellow = (H>=35) & (H<=59)  & (S>=60) & (V>=50)
+    brown1 = (H>=8)  & (H<=35)  & (S>=50) & (V>=20) & (V<=200)
+    brown2 = (H<=8)  & (S>=60)  & (V>=10) & (V<=180)
+    mask = (green | yellow | brown1 | brown2).astype(np.float32)
+    # halus tipis (box 3x3)
+    if mask.sum() > 0:
+        k = 3; pad = k // 2
+        padded = np.pad(mask, ((pad,pad),(pad,pad)), mode="edge")
+        smoothed = np.zeros_like(mask)
+        for i in range(mask.shape[0]):
+            for j in range(mask.shape[1]):
+                smoothed[i,j] = padded[i:i+k, j:j+k].mean()
+        mask = np.clip(smoothed, 0, 1)
+    return mask
 
-def _skin_in_mask_ratio_ycrcb(img_rgb, mask01):
-    """Proporsi piksel berkarakter kulit (YCrCb) di dalam mask (untuk menolak wajah)."""
-    ycrcb = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2YCrCb)
-    Y, Cr, Cb = ycrcb[...,0], ycrcb[...,1], ycrcb[...,2]
-    # rentang kulit yang umum (longgar)
-    skin = ((Cr>=135) & (Cr<=180) & (Cb>=85) & (Cb<=135)).astype(np.uint8)
-    s_in = int((skin & mask01).sum())
-    area = int(mask01.sum()) + 1
-    return float(s_in) / float(area)
+# ========= Lesion prior (brownness + darkness) =========
+def _lesion_prior_brown(pil_img: Image.Image) -> np.ndarray:
+    rgb = np.asarray(pil_img.convert("RGB")).astype(np.float32) / 255.0
+    r, g, b = rgb[...,0], rgb[...,1], rgb[...,2]
+    brownness = np.clip((r - g), 0, 1) + np.clip((r - b), 0, 1)
+    brownness = brownness / (brownness.max() + 1e-6)
+    V = np.asarray(pil_img.convert("HSV"))[...,2].astype(np.float32) / 255.0
+    darkness = np.clip((0.8 - V) / 0.8, 0, 1)
+    prior = 0.6 * brownness + 0.4 * darkness
+    # haluskan box 3x3
+    k = 3; pad = k // 2
+    padded = np.pad(prior, ((pad,pad),(pad,pad)), mode="edge")
+    sm = np.zeros_like(prior)
+    for i in range(prior.shape[0]):
+        for j in range(prior.shape[1]):
+            sm[i,j] = padded[i:i+k, j:j+k].mean()
+    return np.clip(sm, 0, 1)
 
-def tomato_gate(pil_image,
-                min_mask_frac=0.08, max_mask_frac=0.95, min_solidity=0.25,
-                min_green_ratio=0.12,    # bukti hijau minimal
-                max_skin_in_mask=0.35):  # jika skin>35% di dalam mask → tolak
-    """
-    Return:
-      accept(bool), info(dict: mask_frac, solidity, green_ratio, skin_ratio, reasons[list])
-    """
-    rgb = np.array(pil_image.convert("RGB"))
-    mask = _leaf_mask_lab(rgb)
-    frac, sol = _largest_component_stats(mask)
-    green_r   = _green_ratio_hsv(rgb, mask)
-    skin_r    = _skin_in_mask_ratio_ycrcb(rgb, mask)
+def _resize_like(cam_src: torch.Tensor, cam_ref: torch.Tensor) -> torch.Tensor:
+    if cam_src.shape == cam_ref.shape: return cam_src
+    return _upsample_cam(cam_src, (cam_ref.shape[0], cam_ref.shape[1]))
 
-    reasons = []
-    if frac < min_mask_frac: reasons.append(f"mask kecil ({frac:.2f})")
-    if frac > max_mask_frac: reasons.append(f"mask terlalu besar ({frac:.2f})")
-    if sol  < min_solidity:  reasons.append(f"solidity rendah ({sol:.2f})")
-    if green_r < min_green_ratio: reasons.append(f"hijau rendah ({green_r:.2f})")
-    if skin_r  > max_skin_in_mask: reasons.append(f"pola kulit terdeteksi ({skin_r:.2f})")
+# ========= Target layer Grad-CAM (dikembalikan seperti semula) =========
+def get_target_layer(model: nn.Module, name: str):
+    if name == "res2":            return model.res2            # kembali ke Sequential res2
+    if name == "conv4_prepool":   return model.conv4[1]
+    if name == "conv3_prepool":   return model.conv3[1]
+    if name == "conv2_prepool":   return model.conv2[1]
+    raise ValueError(f"target_layer tidak dikenal: {name}")
 
-    return (len(reasons) == 0), {
-        "mask_frac": frac, "solidity": sol,
-        "green_ratio": green_r, "skin_ratio": skin_r,
-        "reasons": reasons
-    }
-# ========== END Gate ==========
+# ========= Grad-CAM standar (tanpa modifikasi/fallback) =========
+class GradCAM:
+    def __init__(self, model: nn.Module, target_layer: nn.Module):
+        self.model = model.eval()
+        self._A = None
+        self._G = None
+        self.h1 = target_layer.register_forward_hook(self._fhook)
+        try:
+            self.h2 = target_layer.register_full_backward_hook(self._bhook)
+        except AttributeError:
+            self.h2 = target_layer.register_backward_hook(self._bhook)
+    def _fhook(self, module, inp, out):       self._A = out.detach().clone()
+    def _bhook(self, module, gin, gout):      self._G = gout[0].detach().clone()
+    def remove(self):                         self.h1.remove(); self.h2.remove()
 
-st.set_page_config(page_title="Prediksi Penyakit Tomat + Grad-CAM", layout="wide")
-st.title("🔍 Prediksi Penyakit Tomat + Fitur Grad-CAM")
+    def compute(self, x: torch.Tensor, class_idx: int | None = None):
+        with torch.enable_grad():
+            self.model.zero_grad(set_to_none=True)
+            out = self.model(x)                # 1 x C
+            probs = torch.softmax(out, dim=1)[0]
+            if class_idx is None:
+                class_idx = int(torch.argmax(probs).item())
+            score = out[0, class_idx]
+            score.backward(retain_graph=False)
+            A = self._A[0]                                # (C,H,W)
+            G = self._G[0]                                # (C,H,W)
+            weights = G.view(G.size(0), -1).mean(dim=1)   # (C,)
+            cam = torch.sum(weights[:, None, None] * A, dim=0)   # (H,W)
+            cam = _normalize_cam(cam)
+        return cam, class_idx, probs.detach().cpu().numpy()
 
-if "history" not in st.session_state:
-    st.session_state["history"] = []
+# ========= API utama (tidak merender) =========
+def gradcam_on_pil(
+    model: nn.Module,
+    pil_img: Image.Image,
+    target_layer_name: str = "conv3_prepool",
+    class_idx: int | None = None,
+    alpha: float = 0.45,
+    mask_bg: bool = True,
+    include_brown: bool = True,
+    lesion_boost: bool = True,
+    lesion_weight: float = 0.5,
+    blend_with_res2: bool = False,
+    erode_border: bool = True
+):
+    x = transform(pil_img).unsqueeze(0)
 
-# ------ Util display: batasi tampilan agar tidak 100% ------
-DISPLAY_CAP = 0.9999  # 99.99% maksimum di UI
+    # CAM utama
+    tl = get_target_layer(model, target_layer_name)
+    engine = GradCAM(model, tl)
+    try:
+        cam, used_idx, probs = engine.compute(x, class_idx=class_idx)
+    finally:
+        engine.remove()
 
-def cap_for_display(p: float, cap: float = DISPLAY_CAP) -> float:
-    return p if p < cap else cap
+    # Blend dengan res2 (4x4) jika diminta
+    if blend_with_res2 and target_layer_name != "res2":
+        tl2 = get_target_layer(model, "res2")
+        engine2 = GradCAM(model, tl2)
+        try:
+            cam2, _, _ = engine2.compute(x, class_idx=used_idx)
+        finally:
+            engine2.remove()
+        cam2 = _resize_like(cam2, cam)
+        cam  = _normalize_cam(0.6 * cam + 0.4 * cam2)
 
-def fmt_pct(p: float, cap: float = DISPLAY_CAP, decimals: int = 2) -> str:
-    q = cap_for_display(float(p), cap)
-    return f"{q*100:.{decimals}f}%"
+    # Upsample ke ukuran gambar asli
+    H, W = pil_img.size[1], pil_img.size[0]
+    cam_up = _upsample_cam(cam, (H, W))
 
-# ----- Sidebar -----
-with st.sidebar:
-    st.header("Pengaturan Visualisasi")
-    target_layer_name = st.selectbox(
-        "Layer target Grad-CAM",
-        options=["conv4_prepool", "conv3_prepool", "conv2_prepool", "res2"],
-        index=0
-    )
-    alpha = st.slider("Transparansi Heatmap (α)", 0.0, 1.0, 0.45, 0.05)
-    topk  = st.slider("Jumlah alternatif (Top-k)", 1, min(5, len(CLASS_NAMES)), 3, 1)
+    # Mask daun + erosi tepi
+    if mask_bg:
+        if include_brown:
+            m = _leaf_mask_hsv_with_brown(pil_img)
+        else:
+            hsv = np.asarray(pil_img.convert("HSV")).astype(np.int32)
+            Hh, Ss, Vv = hsv[...,0], hsv[...,1], hsv[...,2]
+            green  = (Hh>=60) & (Hh<=130) & (Ss>=60) & (Vv>=40)
+            yellow = (Hh>=35) & (Hh<=59)  & (Ss>=60) & (Vv>=50)
+            m = (green | yellow).astype(np.float32)
+        if erode_border:
+            m = _erode_min(m, k=3, iters=1)
+        cam_up = cam_up * torch.tensor(m, dtype=cam_up.dtype, device=cam_up.device)
 
-    mask_bg = st.checkbox("Mask background (fokus ke daun)", True)
-    blend_with_res2 = st.checkbox("Blend dengan res2 (stabilkan semantik)", True)
+    # Lesion prior
+    if lesion_boost:
+        prior = _lesion_prior_brown(pil_img)
+        cam_up = cam_up * (1.0 + float(lesion_weight) *
+                           torch.tensor(prior, dtype=cam_up.dtype, device=cam_up.device))
 
-    st.markdown("---")
-    erode_border = st.checkbox("Erosi tepi mask 1px (redam pinggiran daun)", True)
-    lesion_boost = st.checkbox("Deteksi bintik (aktifkan lesion prior)", True)
-    lesion_weight = st.slider("Bobot deteksi bintik (lesion prior)", 0.0, 1.0, 0.5, 0.05)
+    cam_up = _normalize_cam(cam_up).cpu().numpy()
+    overlay = _overlay(pil_img, cam_up, alpha=alpha)
+    pred_label = CLASS_NAMES[used_idx] if 0 <= used_idx < len(CLASS_NAMES) else str(used_idx)
+    return overlay, cam_up, pred_label, used_idx, probs
 
-    st.markdown("---")
-    show_full_chart = st.checkbox("Tampilkan chart probabilitas lengkap", True)
-    sort_desc = st.checkbox("Urutkan chart menurun", True)
+def show_prediction_and_cam(
+    model: nn.Module,
+    pil_img: Image.Image,
+    alpha: float = 0.45,
+    topk: int = 3,
+    target_layer_name: str = "conv3_prepool",
+    mask_bg: bool = True,
+    include_brown: bool = True,
+    lesion_boost: bool = True,
+    lesion_weight: float = 0.5,
+    blend_with_res2: bool = False,
+    erode_border: bool = True
+):
+    # Prediksi RAW (tanpa clipping)
+    with torch.no_grad():
+        x = transform(pil_img).unsqueeze(0)
+        out = model(x)
+        probs_raw = torch.softmax(out[0], dim=0).cpu().numpy()
+        used_idx = int(np.argmax(probs_raw))
 
-# ----- Model -----
-model = load_model(cache_bust="noinplace-v3")
-
-# ----- Uploader -----
-uploaded_file = st.file_uploader("Upload gambar daun tomat", type=["jpg", "jpeg", "png"])
-
-if uploaded_file:
-    image = Image.open(uploaded_file).convert("RGB")
-
-    # === Gate: hanya ijinkan daun tomat ===
-    accept, info_gate = tomato_gate(image)  # ambang default aman
-    if not accept:
-        st.error("❌ Ditolak: bukan daun tomat / kualitas kurang memadai → " + ", ".join(info_gate["reasons"]))
-        st.stop()
-
-    # Prediksi + Grad-CAM (helper TIDAK merender apa pun)
-    overlay, cam, used_idx, probs_raw = show_prediction_and_cam(
-        model, image,
-        alpha=alpha,
-        topk=topk,
+    # Grad-CAM untuk kelas teratas
+    overlay, cam, _, _, _ = gradcam_on_pil(
+        model, pil_img,
         target_layer_name=target_layer_name,
-        include_brown=True,
-        lesion_boost=lesion_boost, lesion_weight=lesion_weight,
+        class_idx=used_idx,
+        alpha=alpha,
         mask_bg=mask_bg,
+        include_brown=include_brown,
+        lesion_boost=lesion_boost,
+        lesion_weight=lesion_weight,
         blend_with_res2=blend_with_res2,
         erode_border=erode_border
     )
 
-    # === DUA PANEL: KIRI INPUT, KANAN GRAD-CAM ===
-    col1, col2 = st.columns([1, 1])
-    with col1:
-        st.image(image, caption="Input", use_container_width=True)
-        st.caption(
-            f"Gate: mask_frac={info_gate['mask_frac']:.2f} • "
-            f"solidity={info_gate['solidity']:.2f} • "
-            f"green={info_gate['green_ratio']:.2f} • "
-            f"skin={info_gate['skin_ratio']:.2f}"
-        )
-    with col2:
-        st.image(
-            overlay,
-            caption=f"Grad-CAM ({target_layer_name}) → {CLASS_NAMES[used_idx]} • Confidence: {fmt_pct(probs_raw[used_idx])}",
-            use_container_width=True
-        )
-    st.caption("---")
-
-    # Alternatif (Top-k) — teks
-    topk_ = min(topk, len(CLASS_NAMES))
-    order = np.argsort(-probs_raw)[:topk_]
-    st.markdown("**Alternatif (Top-k)**")
-    st.markdown("\n".join([
-        f"{'★' if i==used_idx else '•'} {CLASS_NAMES[i]}: {fmt_pct(probs_raw[i])}"
-        for i in order
-    ]))
-
-    # Chart probabilitas lengkap (opsional)
-    if show_full_chart:
-        st.subheader("📊 Probabilitas per Kelas")
-        probs_plot = np.minimum(np.array(probs_raw, dtype=float), DISPLAY_CAP)
-        idxs = np.argsort(-probs_plot) if sort_desc else np.arange(len(CLASS_NAMES))
-        fig, ax = plt.subplots()
-        ax.barh([CLASS_NAMES[i] for i in idxs], probs_plot[idxs], height=0.6)
-        ax.invert_yaxis()
-        ax.set_xlim(0, 1)
-        ax.set_xlabel("Probabilitas (dibatasi < 100%)")
-        ax.set_ylabel("Kelas")
-        st.pyplot(fig)
-
-    # (Dihapus) — Grad-CAM untuk kelas tertentu
-
-    # Histori
-    st.session_state["history"].append({
-        "Tanggal": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "Nama File": uploaded_file.name,
-        "Prediksi": CLASS_NAMES[used_idx],
-        "Probabilitas (display)": fmt_pct(probs_raw[used_idx]),
-        "Layer": target_layer_name,
-        "MaskBG": mask_bg,
-        "BlendRes2": blend_with_res2,
-        "ErodeBorder": erode_border,
-        "LesionBoost": lesion_boost,
-        "LesionWeight": lesion_weight,
-        "Gate_mask_frac": f"{info_gate['mask_frac']:.2f}",
-        "Gate_solidity": f"{info_gate['solidity']:.2f}",
-        "Gate_green": f"{info_gate['green_ratio']:.2f}",
-        "Gate_skin": f"{info_gate['skin_ratio']:.2f}"
-    })
-
-# Riwayat + unduh
-if st.session_state["history"]:
-    st.subheader("📜 Histori Prediksi")
-    df = pd.DataFrame(st.session_state["history"])
-    st.dataframe(df, use_container_width=True)
-    csv = df.to_csv(index=False).encode("utf-8")
-    st.download_button("⬇️ Download CSV", csv, "histori_prediksi.csv", "text/csv")
-
-st.write("""
-Sebagai Catatan: Ini adalah alat diagnosis dengan bantuan Kecerdasan Buatan dan sebaiknya digunakan hanya sebagai panduan.
-Untuk diagnosis konklusif, konsultasikan dengan ahli patologi tanaman profesional.
-""")
-
-st.markdown("---")
-st.markdown("""
-<div style='text-align: center; font-size:14px;'>
-<b>© - 2025 | Muhammad Sahrul Farhan | 51421076</b><br>
-🔗 <a href="https://www.linkedin.com/in/muhammad-sahrul-farhan/" target="blank_">LinkedIn</a> |
-<a href="https://www.instagram.com/eitcheien/" target="blank_">Instagram</a> |
-<a href="https://www.facebook.com/skywalkr12" target="blank_">Facebook</a>
-</div>
-""", unsafe_allow_html=True)
+    return overlay, cam, used_idx, probs_raw
