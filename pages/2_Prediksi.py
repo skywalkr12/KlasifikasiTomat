@@ -288,7 +288,7 @@ Diperlukan pemeriksaan lapang lebih lanjut.
         ax.barh([CLASS_NAMES[i] for i in idxs], probs_plot[idxs], height=0.6)
         ax.invert_yaxis()
         ax.set_xlim(0, 1)
-        ax.set_xlabel("Probabilitas (dibatasi < 100%)")
+        ax.set_xlabel("Probabilitas")
         ax.set_ylabel("Kelas")
         st.pyplot(fig)
 
@@ -327,6 +327,7 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
 
 
 
