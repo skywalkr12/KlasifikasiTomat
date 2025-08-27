@@ -1,5 +1,5 @@
 # prediksi.py
-# -- Gate "tomato-only" sudah terintegrasi (LAB + anti-skin YCrCb) --
+# -- Gate "tomato-only" sudah terintegrasi (LAB + anti-skin YCrCb, ringkas) --
 # -- Tambahkan ke requirements.txt: opencv-python-headless>=4.9.0 --
 
 import streamlit as st
@@ -131,10 +131,12 @@ def fmt_pct(p: float, cap: float = DISPLAY_CAP, decimals: int = 2) -> str:
 # ----- Sidebar -----
 with st.sidebar:
     st.header("Pengaturan Visualisasi")
+    options = ["conv4_prepool", "conv3_prepool", "conv2_prepool", "res2"]
+    default_layer = "res2"
     target_layer_name = st.selectbox(
         "Layer target Grad-CAM",
-        options=["conv4_prepool", "conv3_prepool", "conv2_prepool", "res2"],
-        index=0
+        options=options,
+        index=options.index(default_layer)
     )
     alpha = st.slider("Transparansi Heatmap (α)", 0.0, 1.0, 0.45, 0.05)
     topk  = st.slider("Jumlah alternatif (Top-k)", 1, min(5, len(CLASS_NAMES)), 3, 1)
@@ -177,6 +179,7 @@ if uploaded_file:
         mask_bg=mask_bg,
         blend_with_res2=blend_with_res2,
         erode_border=erode_border
+        # suppress_chlorosis default True di helper.py (tidak perlu opsi UI)
     )
 
     # === DUA PANEL: KIRI INPUT, KANAN GRAD-CAM ===
@@ -219,22 +222,8 @@ if uploaded_file:
         ax.set_ylabel("Kelas")
         st.pyplot(fig)
 
-    # Grad-CAM untuk kelas lain (opsional)
-    with st.expander("🎯 Lihat Grad-CAM untuk kelas tertentu"):
-        target_label = st.selectbox("Pilih kelas", CLASS_NAMES, index=used_idx)
-        target_idx = CLASS_NAMES.index(target_label)
-        overlay2, _, _, _, _ = gradcam_on_pil(
-            model, image,
-            target_layer_name=target_layer_name,
-            include_brown=True,
-            lesion_boost=lesion_boost, lesion_weight=lesion_weight,
-            class_idx=target_idx,
-            alpha=alpha,
-            mask_bg=mask_bg,
-            blend_with_res2=blend_with_res2,
-            erode_border=erode_border
-        )
-        st.image(overlay2, caption=f"Grad-CAM ({target_layer_name}) → {target_label}", use_container_width=True)
+    # (Diminta user) — TIDAK menampilkan Grad-CAM kelas lain
+    # (blok expander dihilangkan)
 
     # Histori
     st.session_state["history"].append({
