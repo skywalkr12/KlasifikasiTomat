@@ -1,5 +1,5 @@
 # prediksi.py
-# -- Gate "tomato-only" sederhana + Prediksi + Grad-CAM
+# -- Gate "tomato-only" sederhana + Prediksi + Grad-CAM (external mask)
 # -- + Deteksi Kekuningan & Kelayuan
 # -- + Mode CAM: Standar / Brown-aware / Wilt-aware / Brown+Wilt
 # requires: opencv-python-headless>=4.9.0
@@ -18,7 +18,7 @@ from helper import (
     CLASS_NAMES
 )
 
-# ========= Util kecil =========
+# ========= util =========
 def _normalize01(arr):
     arr = arr.astype(np.float32)
     mn, mx = float(arr.min()), float(arr.max())
@@ -33,11 +33,10 @@ def _overlay_jet(pil_img, cam01, alpha=0.45):
     out = np.clip(out, 0, 1)
     return Image.fromarray((out*255).astype(np.uint8))
 
-# ========== Gate TOMATO-ONLY (LAB + anti-skin, ringkas) ==========
+# ========== Gate (LAB + anti-skin) ==========
 def _leaf_mask_lab_union(img_rgb,
                          L_min=25, L_max=245,
                          a_green_max=-5, a_brown_min=12, b_yellow_min=10):
-    """Mask awal berbasis LAB untuk green/yellow/brown."""
     lab = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2LAB)
     L, A, B = lab[..., 0], lab[..., 1], lab[..., 2]
     a = A.astype(np.int16) - 128
@@ -52,7 +51,6 @@ def _leaf_mask_lab_union(img_rgb,
     return m
 
 def _largest_component(mask01):
-    """Ambil komponen terbesar sebagai mask daun; return (comp, frac, solidity)."""
     num, labels = cv2.connectedComponents(mask01)
     if num <= 1:
         return np.zeros_like(mask01, dtype=np.uint8), 0.0, 0.0
@@ -90,23 +88,17 @@ def _skin_in_mask_ratio_ycrcb(img_rgb, mask01):
 def tomato_gate(pil_image,
                 min_mask_frac=0.06, max_mask_frac=0.90, min_solidity=0.22,
                 min_green_ratio=0.10, max_skin_in_mask=0.35):
-    """
-    Return:
-      accept(bool), info(dict: metrics..., 'leaf_mask': uint8 mask komponen terbesar)
-    """
     rgb = np.array(pil_image.convert("RGB"))
     union = _leaf_mask_lab_union(rgb)
-    comp, frac, sol = _largest_component(union)                # ← hanya komponen terbesar
+    comp, frac, sol = _largest_component(union)
     green_r   = _green_ratio_hsv(rgb, comp)
     skin_r    = _skin_in_mask_ratio_ycrcb(rgb, comp)
-
     reasons = []
     if frac < min_mask_frac: reasons.append(f"mask kecil ({frac:.2f})")
     if frac > max_mask_frac: reasons.append(f"mask terlalu besar ({frac:.2f})")
     if sol  < min_solidity:  reasons.append(f"solidity rendah ({sol:.2f})")
     if green_r < min_green_ratio: reasons.append(f"hijau rendah ({green_r:.2f})")
     if skin_r  > max_skin_in_mask: reasons.append(f"pola kulit terdeteksi ({skin_r:.2f})")
-
     return (len(reasons) == 0), {
         "mask_frac": frac, "solidity": sol,
         "green_ratio": green_r, "skin_ratio": skin_r,
@@ -142,26 +134,17 @@ def _color_masks_hsv(img_rgb, leaf_mask01):
 def _build_brown_prior(mask_brown, leaf_mask01, k_blur=9):
     m = (mask_brown & leaf_mask01).astype(np.uint8)
     prior = cv2.GaussianBlur(m*255, (k_blur, k_blur), 0).astype(np.float32) / 255.0
-    if prior.max() > 0:
+    prior = prior * (leaf_mask01.astype(np.float32))  # clamp ulang setelah blur
+    if prior.max() > 1e-6:
         prior = prior / prior.max()
     return prior
 
 def _build_wilt_prior_inside(leaf_mask01):
-    """
-    Wilt prior DI-DALAM daun:
-      - inner edge band = leaf - erode(leaf)
-      - concavity touch = dilate(hull-leaf) ∩ inner_edge_band
-      - prior = 0.7*concavity_touch + 0.3*inner_edge_strength (LoG)
-    """
     leaf = leaf_mask01.astype(np.uint8)
     if leaf.sum() == 0:
         return np.zeros_like(leaf, dtype=np.float32)
-
-    # inner edge band (pita 1-2 px di dalam daun)
     k = np.ones((3,3), np.uint8)
     inner_edge = cv2.subtract(leaf, cv2.erode(leaf, k, 1))
-
-    # convex hull deficit lalu proyeksikan ke tepi dalam
     cnts, _ = cv2.findContours(leaf, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not cnts:
         return np.zeros_like(leaf, dtype=np.float32)
@@ -169,15 +152,10 @@ def _build_wilt_prior_inside(leaf_mask01):
     hull = cv2.convexHull(cnt)
     hull_mask = np.zeros_like(leaf, dtype=np.uint8)
     cv2.fillConvexPoly(hull_mask, hull, 1)
-    deficit_outside = cv2.subtract(hull_mask, leaf)           # di LUAR daun
-    concavity_touch = cv2.dilate(deficit_outside, k, 1) & inner_edge  # hanya tepi-dalam yg bersentuhan
-
-    # edge strength di dalam daun (LoG ringan pada grayscale)
-    # siapkan grayscale dibatasi ke leaf (pakai distance untuk keamanan bila tak ada gambar)
-    edge_strength = inner_edge.copy().astype(np.float32)
-    edge_strength = cv2.GaussianBlur(edge_strength, (5,5), 0)
-
-    prior = 0.7*concavity_touch.astype(np.float32) + 0.3*edge_strength
+    deficit_outside = cv2.subtract(hull_mask, leaf)
+    concavity_touch = (cv2.dilate(deficit_outside, k, 1) & inner_edge).astype(np.float32)
+    edge_strength = cv2.GaussianBlur(inner_edge.astype(np.float32), (5,5), 0)
+    prior = 0.7*concavity_touch + 0.3*edge_strength
     prior = cv2.GaussianBlur(prior, (7,7), 0)
     prior = prior * (leaf>0)  # clamp ke dalam daun
     if prior.max() > 1e-6:
@@ -244,27 +222,28 @@ if uploaded_file:
     image = Image.open(uploaded_file).convert("RGB")
     rgb = np.array(image)
 
-    # 1) Gate (dengan mask komponen terbesar)
+    # 1) Gate + leaf mask komponen terbesar
     accept, info_gate = tomato_gate(image)
     if not accept:
         st.error("❌ Ditolak: bukan daun tomat / kualitas kurang memadai → " + ", ".join(info_gate["reasons"]))
         st.stop()
     leaf_mask01 = info_gate["leaf_mask"].astype(np.uint8)
 
-    # 2) Prediksi + CAM dasar (sudah termask di helper bila mask_bg=True)
+    # 2) Prediksi + Grad-CAM (pakai external_leaf_mask dari gate + fallback res2)
     overlay_std, cam_base, used_idx, probs_raw = show_prediction_and_cam(
         model, image,
         alpha=alpha, topk=topk, target_layer_name=target_layer_name,
         include_brown=True, lesion_boost=lesion_boost, lesion_weight=lesion_weight,
-        mask_bg=mask_bg, blend_with_res2=blend_with_res2, erode_border=erode_border
+        mask_bg=mask_bg, blend_with_res2=blend_with_res2, erode_border=erode_border,
+        external_leaf_mask=leaf_mask01, auto_res2_fallback=True
     )
 
-    # 3) Warna & prior (dibatasi leaf_mask)
+    # 3) Warna & prior (clamp ulang setelah blur)
     color_masks, color_stats = _color_masks_hsv(rgb, leaf_mask01)
     brown_prior = _build_brown_prior(color_masks["brown"], leaf_mask01, k_blur=9)
     wilt_prior  = _build_wilt_prior_inside(leaf_mask01)
 
-    # 4) Re-weight CAM + clamp ke daun lagi (anti bocor)
+    # 4) Re-weight CAM (mode) + clamp ke daun + re-norm
     cam_mod = cam_base.copy()
     if cam_mode == "Brown-aware":
         cam_mod = _normalize01(cam_base * (1.0 + 1.0 * brown_prior))
@@ -272,14 +251,37 @@ if uploaded_file:
         cam_mod = _normalize01(cam_base * (1.0 + 1.0 * wilt_prior))
     elif cam_mode == "Brown+Wilt":
         cam_mod = _normalize01(cam_base * (1.0 + 0.9 * brown_prior + 0.9 * wilt_prior))
-    # clamp to leaf area AGAIN
     cam_mod = cam_mod * (leaf_mask01.astype(np.float32))
+    if cam_mod.max() > 1e-6:
+        cam_mod = cam_mod / (cam_mod.max() + 1e-8)
 
     overlay = _overlay_jet(image, cam_mod, alpha=alpha)
-    color_overlay = _make_color_overlay(image, color_masks, alpha=0.45)
 
-    # 5) Shape metrics untuk ringkasan kelayuan
-    # (kita hitung cepat lagi di sini)
+    # 5) Overlay prior gabungan (hanya dalam daun)
+    prior_combo = _normalize01((0.5*brown_prior + 0.5*wilt_prior) * leaf_mask01)
+
+    # === Panel tampilan ===
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col1:
+        st.image(image, caption="Input", width="stretch")
+        st.caption(
+            f"Gate: mask_frac={info_gate['mask_frac']:.2f} • "
+            f"solidity={info_gate['solidity']:.2f} • "
+            f"green={info_gate['green_ratio']:.2f} • "
+            f"skin={info_gate['skin_ratio']:.2f}"
+        )
+    with col2:
+        st.image(
+            overlay,
+            caption=f"Grad-CAM ({cam_mode}, {target_layer_name}) → {CLASS_NAMES[used_idx]} • Confidence: {probs_raw[used_idx]*100:.2f}%",
+            width="stretch"
+        )
+    with col3:
+        st.image(_overlay_jet(image, prior_combo, alpha=0.45),
+                 caption="Peta Prior (dibatasi daun)", width="stretch")
+
+    # 6) Ringkasan metrik (chlorosis / wilt)
+    #    (metrik shape ulang singkat di sini)
     def _shape_metrics_for_wilt(leaf_mask01):
         num, labels = cv2.connectedComponents(leaf_mask01)
         if num <= 1: return {"solidity": 0.0, "roughness": 0.0}
@@ -305,28 +307,6 @@ if uploaded_file:
     chlorosis_score = float(np.clip(0.7*(color_stats["yellow_ratio"]/0.25) + 0.3*((1.0-color_stats["green_ratio"])/0.5), 0.0, 1.0))
     wilt_score      = float(np.clip(0.6*((1.0 - shape_stats["solidity"])/0.75) + 0.4*(shape_stats["roughness"]), 0.0, 1.0))
 
-    # === Panel tampilan ===
-    col1, col2, col3 = st.columns([1, 1, 1])
-    with col1:
-        st.image(image, caption="Input", width="stretch")
-        st.caption(
-            f"Gate: mask_frac={info_gate['mask_frac']:.2f} • "
-            f"solidity={info_gate['solidity']:.2f} • "
-            f"green={info_gate['green_ratio']:.2f} • "
-            f"skin={info_gate['skin_ratio']:.2f}"
-        )
-    with col2:
-        st.image(
-            overlay,
-            caption=f"Grad-CAM ({cam_mode}, {target_layer_name}) → {CLASS_NAMES[used_idx]} • Confidence: {fmt_pct(probs_raw[used_idx])}",
-            width="stretch"
-        )
-    with col3:
-        prior_combo = _normalize01(0.5*brown_prior + 0.5*wilt_prior) * leaf_mask01
-        st.image(_overlay_jet(image, prior_combo, alpha=0.45),
-                 caption="Peta Prior (dibatasi daun)", width="stretch")
-
-    # Ringkasan metrik
     st.subheader("📊 Deteksi Kekuningan & Kelayuan")
     mcol1, mcol2, mcol3, mcol4 = st.columns(4)
     with mcol1: st.metric("Rasio Kuning", f"{color_stats['yellow_ratio']*100:.2f}%")
@@ -347,11 +327,10 @@ if uploaded_file:
     order = np.argsort(-probs_raw)[:topk_]
     st.markdown("**Alternatif (Top-k)**")
     st.markdown("\n".join([
-        f"{'★' if i==used_idx else '•'} {CLASS_NAMES[i]}: {fmt_pct(probs_raw[i])}"
+        f"{'★' if i==used_idx else '•'} {CLASS_NAMES[i]}: {probs_raw[i]*100:.2f}%"
         for i in order
     ]))
 
-    # Chart probabilitas (opsional)
     if show_full_chart:
         st.subheader("📊 Probabilitas per Kelas")
         probs_plot = np.minimum(np.array(probs_raw, dtype=float), DISPLAY_CAP)
@@ -369,7 +348,7 @@ if uploaded_file:
         "Tanggal": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "Nama File": uploaded_file.name,
         "Prediksi": CLASS_NAMES[used_idx],
-        "Probabilitas (display)": fmt_pct(probs_raw[used_idx]),
+        "Probabilitas (display)": f"{probs_raw[used_idx]*100:.2f}%",
         "Layer": target_layer_name,
         "CAM_Mode": cam_mode,
         "MaskBG": mask_bg,
@@ -394,6 +373,6 @@ if st.session_state["history"]:
     st.download_button("⬇️ Download CSV", csv, "histori_prediksi.csv", "text/csv")
 
 st.write("""
-Catatan: CAM 'Brown/Wilt-aware' hanya membimbing heatmap ke area yang heuristiknya cocok (warna cokelat / tepi berkonkav).
-Ini bukan bukti patologi final. Gunakan bersama interpretasi ahli.
+Catatan: CAM 'Brown/Wilt-aware' membimbing heatmap ke area sesuai heuristik (warna cokelat / tepi berkonkav),
+bukan diagnosis final. Gunakan bersama penilaian ahli.
 """)
