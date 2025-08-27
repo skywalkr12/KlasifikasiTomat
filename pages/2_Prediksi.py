@@ -196,7 +196,6 @@ def fmt_pct(p: float, cap: float = DISPLAY_CAP, decimals: int = 2) -> str:
 
 # ----- Sidebar -----
 with st.sidebar:
-    # --- TAMBAHAN: Panduan Pengguna ---
     st.header("💡 Panduan Penggunaan")
     st.markdown("""
     - **Unggah Gambar:** Siapkan foto daun tomat Anda (format JPG, JPEG, PNG).
@@ -212,7 +211,7 @@ with st.sidebar:
     sort_desc = st.checkbox("Urutkan chart menurun", True)
 
 # ----- Model -----
-model = load_model()  # gunakan default dari helper.py
+model = load_model()
 
 # ----- Uploader -----
 uploaded_file = st.file_uploader("Upload gambar daun tomat", type=["jpg", "jpeg", "png"])
@@ -220,25 +219,21 @@ uploaded_file = st.file_uploader("Upload gambar daun tomat", type=["jpg", "jpeg"
 if uploaded_file:
     image = Image.open(uploaded_file).convert("RGB")
 
-    # 1) Gate sederhana (sekalian ambil mask)
     accept, info_gate = tomato_gate(image)
     if not accept:
         st.error("❌ Ditolak: bukan daun tomat / kualitas kurang memadai → " + ", ".join(info_gate["reasons"]))
         st.stop()
     leaf_mask01 = info_gate["mask"].astype(np.uint8)
 
-    # 2) Prediksi kelas (tanpa Grad-CAM)
     pred_name, probs_raw, _ = predict_image(model, image)
     used_idx = int(np.argmax(probs_raw))
 
-    # 3) Analisis kekuningan (chlorosis) & kelayuan (wilt)
     rgb = np.array(image.convert("RGB"))
     color_masks, color_stats = _color_masks_hsv(rgb, leaf_mask01)
     shape_stats = _shape_metrics_for_wilt(leaf_mask01)
     chlorosis_score, wilt_score = _wilt_and_chlorosis_scores(color_stats, shape_stats)
     color_overlay = _make_color_overlay(image, color_masks, alpha=0.45)
 
-    # === Panel tampilan ===
     col1, col2 = st.columns([1, 1])
     with col1:
         st.image(image, caption="Input", use_container_width=True)
@@ -255,22 +250,30 @@ if uploaded_file:
             use_container_width=True
         )
 
-    # --- MODIFIKASI: Menambahkan border di sekeliling hasil analisis ---
     with st.container(border=True):
         st.subheader("📊 Deteksi Kekuningan & Kelayuan")
-        st.write("""
-        Analisis kekuningan/kelayuan hanya membantu memetakan gejala visual, bukan diagnosis final. 
-        Diperlukan pemeriksaan lapang lebih lanjut.
-        """)
-        mcol1, mcol2, mcol3, mcol4 = st.columns(4)
-        with mcol1:
-            st.metric("Rasio Kuning", fmt_pct(color_stats["yellow_ratio"]))
-        with mcol2:
-            st.metric("Rasio Cokelat", fmt_pct(color_stats["brown_ratio"]))
-        with mcol3:
-            st.metric("Solidity (kompaksi)", f"{shape_stats['solidity']:.2f}")
-        with mcol4:
-            st.metric("Roughness (tepi)", f"{shape_stats['roughness']:.2f}")
+        
+        # --- MODIFIKASI: Container baru untuk teks analisis ---
+        with st.container(border=True):
+            st.write("""
+            **Analisis Gejala Visual:** Informasi di bawah ini memetakan gejala visual seperti kekuningan (klorosis) dan kelayuan daun, **ini bukan diagnosis final**. Diperlukan pemeriksaan lapang lebih lanjut untuk konfirmasi.
+            """)
+        
+        st.markdown(" ") # Memberi sedikit spasi
+
+        # --- MODIFIKASI: Container baru untuk hasil metrik/rasio ---
+        with st.container(border=True):
+            mcol1, mcol2, mcol3, mcol4 = st.columns(4)
+            with mcol1:
+                st.metric("Rasio Kuning", fmt_pct(color_stats["yellow_ratio"]))
+            with mcol2:
+                st.metric("Rasio Cokelat", fmt_pct(color_stats["brown_ratio"]))
+            with mcol3:
+                st.metric("Solidity (kompaksi)", f"{shape_stats['solidity']:.2f}")
+            with mcol4:
+                st.metric("Roughness (tepi)", f"{shape_stats['roughness']:.2f}")
+
+        st.markdown(" ") # Memberi sedikit spasi
 
         pcol1, pcol2 = st.columns(2)
         with pcol1:
@@ -280,8 +283,7 @@ if uploaded_file:
             st.markdown(f"**Skor Kelayuan (0–1):** `{wilt_score:.2f}`")
             st.progress(min(max(wilt_score,0.0),1.0))
     
-    # Alternatif (Top-k)
-    st.markdown(" ") # Memberi sedikit spasi
+    st.markdown(" ")
     topk_ = min(topk, len(CLASS_NAMES))
     order = np.argsort(-probs_raw)[:topk_]
     st.markdown("**Alternatif (Top-k)**")
@@ -290,7 +292,6 @@ if uploaded_file:
         for i in order
     ]))
 
-    # Chart probabilitas (opsional)
     if show_full_chart:
         st.subheader("📊 Probabilitas per Kelas")
         probs_plot = np.minimum(np.array(probs_raw, dtype=float), DISPLAY_CAP)
@@ -303,7 +304,6 @@ if uploaded_file:
         ax.set_ylabel("Kelas")
         st.pyplot(fig)
 
-    # Histori
     st.session_state["history"].append({
         "Tanggal": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "Nama File": uploaded_file.name,
@@ -317,7 +317,6 @@ if uploaded_file:
         "Skor_Wilt": f"{wilt_score:.2f}"
     })
 
-# Riwayat + unduh
 if st.session_state["history"]:
     st.subheader("📜 Histori Prediksi")
     df = pd.DataFrame(st.session_state["history"])
