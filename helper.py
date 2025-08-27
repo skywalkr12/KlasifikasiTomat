@@ -52,7 +52,7 @@ def ConvBlock(in_channels, out_channels, pool=False):
         layers.append(nn.MaxPool2d(4))
     return nn.Sequential(*layers)
 
-# ========= Model (ResNet9-variant) =========
+# ========= Model (ResNet9-variant, class-name dibiarkan ResNet18 untuk kompatibilitas) =========
 class ResNet9(ImageClassificationBase):
     def __init__(self, num_diseases=10, in_channels=3):
         super().__init__()
@@ -100,14 +100,14 @@ transform = transforms.Compose([
 ])
 
 # ========= Loader =========
-def load_model(weights_path: str = "model/resnet9(99,16).pt", cache_bust: str = "v1"):
+def load_model(cache_bust: str = "noinplace-v5"):
     model = ResNet9(num_diseases=len(CLASS_NAMES), in_channels=3)
-    sd = torch.load(weights_path, map_location="cpu")
+    sd = torch.load("model/resnet9(99,16).pt", map_location="cpu")
     if isinstance(sd, dict) and "model_state_dict" in sd:
         sd = sd["model_state_dict"]
     sd = { (k.replace("module.","") if k.startswith("module.") else k): v for k,v in sd.items() }
     model.load_state_dict(sd, strict=True)
-    # Non-inplace ReLU agar aman untuk backward hook Grad-CAM
+    # matikan inplace ReLU (aman untuk Grad-CAM)
     for m in model.modules():
         if isinstance(m, nn.ReLU):
             m.inplace = False
@@ -116,7 +116,7 @@ def load_model(weights_path: str = "model/resnet9(99,16).pt", cache_bust: str = 
 
 # ========= Prediksi (RAW, tanpa clipping) =========
 @torch.no_grad()
-def predict_image(model, image: Image.Image):
+def predict_image(model, image):
     x = transform(image).unsqueeze(0)
     out = model(x)
     probs_raw = torch.softmax(out[0], dim=0).cpu().numpy()  # sum=1
@@ -144,6 +144,7 @@ def _overlay(pil_img: Image.Image, cam_hw01: np.ndarray, alpha: float = 0.45) ->
     out = np.clip(out, 0, 1)
     return Image.fromarray((out * 255).astype(np.uint8))
 
+# --- Erosi sederhana (min-filter) untuk mask float 0..1 ---
 def _erode_min(mask: np.ndarray, k: int = 3, iters: int = 1) -> np.ndarray:
     if k <= 1 or iters <= 0: return mask
     m = mask.copy()
@@ -207,15 +208,15 @@ def _resize_like(cam_src: torch.Tensor, cam_ref: torch.Tensor) -> torch.Tensor:
     if cam_src.shape == cam_ref.shape: return cam_src
     return _upsample_cam(cam_src, (cam_ref.shape[0], cam_ref.shape[1]))
 
-# ========= Target layer Grad-CAM (dikembalikan seperti semula) =========
+# ========= Target layer Grad-CAM =========
 def get_target_layer(model: nn.Module, name: str):
-    if name == "res2":            return model.res2            # kembali ke Sequential res2
+    if name == "res2":            return model.res2
     if name == "conv4_prepool":   return model.conv4[1]
     if name == "conv3_prepool":   return model.conv3[1]
     if name == "conv2_prepool":   return model.conv2[1]
     raise ValueError(f"target_layer tidak dikenal: {name}")
 
-# ========= Grad-CAM standar (tanpa modifikasi/fallback) =========
+# ========= Grad-CAM standar =========
 class GradCAM:
     def __init__(self, model: nn.Module, target_layer: nn.Module):
         self.model = model.eval()
