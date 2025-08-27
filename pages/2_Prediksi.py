@@ -265,7 +265,12 @@ if uploaded_file:
     with pcol2:
         st.markdown(f"**Skor Kelayuan (0–1):** `{wilt_score:.2f}`")
         st.progress(min(max(wilt_score,0.0),1.0))
-
+        
+st.write("""
+Analisis kekuningan/kelayuan hanya membantu memetakan gejala visual, bukan diagnosis final.
+Kombinasikan dengan prediksi kelas dan pemeriksaan lapang.
+""")
+    
     # Alternatif (Top-k)
     topk_ = min(topk, len(CLASS_NAMES))
     order = np.argsort(-probs_raw)[:topk_]
@@ -310,11 +315,6 @@ if st.session_state["history"]:
     csv = df.to_csv(index=False).encode("utf-8")
     st.download_button("⬇️ Download CSV", csv, "histori_prediksi.csv", "text/csv")
 
-st.write("""
-Analisis kekuningan/kelayuan hanya membantu memetakan gejala visual, bukan diagnosis final.
-Kombinasikan dengan prediksi kelas dan pemeriksaan lapang.
-""")
-
 st.info( "Perlu diingat: Ini adalah alat diagnosis dengan bantuan Kecerdasan Buatan dan sebaiknya digunakan hanya sebagai panduan. Untuk diagnosis konklusif, konsultasikan dengan ahli patologi tanaman profesional."
 )
 st.markdown(
@@ -328,5 +328,6 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
 
 
