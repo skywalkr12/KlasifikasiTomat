@@ -194,19 +194,19 @@ def fmt_pct(p: float, cap: float = DISPLAY_CAP, decimals: int = 2) -> str:
     q = cap_for_display(float(p), cap)
     return f"{q*100:.{decimals}f}%"
 
-# --- REVISI FUNGSI: METRIK DENGAN BORDER BERWARNA ---
-def colored_metric(label, value, color):
+# --- REVISI FUNGSI: METRIK DENGAN BACKGROUND BERWARNA ---
+def colored_metric(label, value, bg_color, text_color="#FFFFFF"): # Default text_color putih
     st.markdown(
         f"""
         <div style="
-            border: 2px solid {color};
             border-radius: 0.5rem;
             padding: 1rem;
-            background-color: #FFFFFF;
+            background-color: {bg_color}; /* Mengubah background color */
             overflow-wrap: break-word;
-            text-align: center;">
-            <div style="font-size: 0.875rem; color: rgba(49, 51, 63, 0.6); margin-bottom: 0.25rem;">{label}</div>
-            <div style="font-size: 1.5rem; color: #000000; font-weight: normal;">{value}</div>
+            text-align: center;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);"> /* Tambah sedikit shadow agar lebih menonjol */
+            <div style="font-size: 0.875rem; color: {text_color}; margin-bottom: 0.25rem;">{label}</div>
+            <div style="font-size: 1.5rem; color: {text_color}; font-weight: normal;">{value}</div>
         </div>
         """,
         unsafe_allow_html=True
@@ -268,26 +268,26 @@ if uploaded_file:
             use_container_width=True
         )
 
-    with st.container(border=True):
+    with st.container(border=True): # Border utama untuk bagian "Deteksi Kekuningan & Kelayuan"
         st.subheader("📊 Deteksi Kekuningan & Kelayuan")
         
-        with st.container(border=True):
+        with st.container(border=True): # Border untuk teks penjelasan
             st.write("""
             **Analisis Gejala Visual:** Informasi di bawah ini memetakan gejala visual seperti kekuningan (klorosis) dan kelayuan daun, **ini bukan diagnosis final**. Diperlukan pemeriksaan lapang lebih lanjut untuk konfirmasi.
             """)
         
         st.markdown(" ")
 
-        # --- REVISI: Menghapus container luar untuk metrik ---
+        # --- REVISI: Menggunakan fungsi colored_metric dengan background warna ---
         mcol1, mcol2, mcol3, mcol4 = st.columns(4)
         with mcol1:
-            colored_metric("Rasio Kuning", fmt_pct(color_stats["yellow_ratio"]), "#D1B000")
+            colored_metric("Rasio Kuning", fmt_pct(color_stats["yellow_ratio"]), "#D1B000", "#000000") # Kuning, teks hitam
         with mcol2:
-            colored_metric("Rasio Cokelat", fmt_pct(color_stats["brown_ratio"]), "#A0522D")
+            colored_metric("Rasio Cokelat", fmt_pct(color_stats["brown_ratio"]), "#A0522D") # Cokelat, teks putih (default)
         with mcol3:
-            colored_metric("Solidity (kompaksi)", f"{shape_stats['solidity']:.2f}", "#404040")
+            colored_metric("Solidity (kompaksi)", f"{shape_stats['solidity']:.2f}", "#404040") # Kehitaman, teks putih (default)
         with mcol4:
-            colored_metric("Roughness (tepi)", f"{shape_stats['roughness']:.2f}", "#3CB371")
+            colored_metric("Roughness (tepi)", f"{shape_stats['roughness']:.2f}", "#3CB371") # Kehijauan, teks putih (default)
         
         st.markdown(" ")
 
