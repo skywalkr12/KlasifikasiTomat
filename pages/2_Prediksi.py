@@ -204,7 +204,7 @@ def colored_metric(label, value, bg_color, text_color="#FFFFFF"): # Default text
             background-color: {bg_color}; /* Mengubah background color */
             overflow-wrap: break-word;
             text-align: center;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);"> /* Tambah sedikit shadow agar lebih menonjol */
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
             <div style="font-size: 0.875rem; color: {text_color}; margin-bottom: 0.25rem;">{label}</div>
             <div style="font-size: 1.5rem; color: {text_color}; font-weight: normal;">{value}</div>
         </div>
@@ -353,3 +353,4 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
