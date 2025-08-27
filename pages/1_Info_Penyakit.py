@@ -217,7 +217,7 @@ for key in ordered_keys:
     if key in diseases:
         render_section(key, diseases[key])
 
-st.info( "Sebagai Catatan: Ini adalah alat diagnosis dengan bantuan Kecerdasan Buatan dan sebaiknya digunakan hanya sebagai panduan. Untuk diagnosis konklusif, konsultasikan dengan ahli patologi tanaman profesional."
+st.info( "Perlu diingat: Ini adalah alat diagnosis dengan bantuan Kecerdasan Buatan dan sebaiknya digunakan hanya sebagai panduan. Untuk diagnosis konklusif, konsultasikan dengan ahli patologi tanaman profesional."
 )
 st.markdown(
     """
@@ -230,6 +230,7 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
 
 
 
