@@ -177,48 +177,51 @@ def render_sources(srcs):
         return
     st.markdown("**Sumber:**")
     if isinstance(srcs, str):
-        st.markdown(f"- [{srcs}]({srcs})")
+        st.markdown(f"- [{s}]({s})")
     else:
         for s in srcs:
             st.markdown(f"- [{s}]({s})")
 
-# --- REVISI FINAL: Fungsi untuk merender seksi penyakit dengan background gradasi ---
+# --- REVISI FINAL: Membungkus semua konten dalam satu DIV HTML kustom ---
 def render_section(name: str, data: dict):
-    # Gunakan st.container dengan border untuk membungkus semuanya
-    with st.container(border=True):
-        # CSS untuk background gradasi
-        st.markdown(
-            f"""
-            <style>
-                /* Target container yang baru dibuat oleh Streamlit */
-                .st-emotion-cache-1f1G2gn{{
-                    background: linear-gradient(to right, #FFFFFF, #E0F2F1); /* Gradasi Putih ke Hijau Mint */
-                    color: #000000; /* Warna teks hitam agar terbaca */
-                }}
-            </style>
-            """,
-            unsafe_allow_html=True
-        )
+    # Membuka div dengan gaya background gradasi
+    st.markdown(
+        f"""
+        <div style="
+            background: linear-gradient(to right, #FFFFFF, #E0F2F1); /* Gradasi Putih ke Hijau Mint */
+            border: 1px solid #CCCCCC; /* Menambah border abu-abu tipis */
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 25px;
+            color: #000000; /* Memastikan semua teks di dalam berwarna hitam */
+        ">
+        """,
+        unsafe_allow_html=True
+    )
+    
+    # Menampilkan semua konten menggunakan Streamlit di dalam "div"
+    st.subheader(name)
+    
+    sev = data.get("severity", "")
+    if sev:
+        st.caption(f"Tingkat keparahan (lokal): {sev}")
+    
+    img_path = data.get("image")
+    if img_path:
+        try:
+            # Menampilkan gambar di tengah
+            col1, col2, col3 = st.columns([1,2,1])
+            with col2:
+                st.image(f"images/{img_path}", width=300)
+        except Exception:
+            pass
+    
+    render_numbered("Ciri-ciri/Gejala & Catatan:", data.get("desc", "-"))
+    render_numbered("Pencegahan & Penanganan:", data.get("handling", "-"))
+    render_sources(data.get("sources", []))
 
-        st.subheader(name)
-        
-        sev = data.get("severity", "")
-        if sev:
-            st.caption(f"Tingkat keparahan (lokal): {sev}")
-        
-        img_path = data.get("image")
-        if img_path:
-            try:
-                # Menampilkan gambar di tengah
-                col1, col2, col3 = st.columns([1,2,1])
-                with col2:
-                    st.image(f"images/{img_path}", width=300)
-            except Exception:
-                pass
-        
-        render_numbered("Ciri-ciri/Gejala & Catatan:", data.get("desc", "-"))
-        render_numbered("Pencegahan & Penanganan:", data.get("handling", "-"))
-        render_sources(data.get("sources", []))
+    # Menutup div
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # =========================
 # UI
@@ -229,7 +232,8 @@ st.markdown("---")
 for key in ordered_keys:
     if key in diseases:
         render_section(key, diseases[key])
-        st.markdown("<br>", unsafe_allow_html=True) # Menambah spasi antar seksi
+        # Spasi antar seksi sudah diatur oleh margin-bottom di CSS, jadi <br> tidak perlu
+        # st.markdown("<br>", unsafe_allow_html=True) 
 
 st.info( "Perlu diingat: Ini adalah alat diagnosis dengan bantuan Kecerdasan Buatan dan sebaiknya digunakan hanya sebagai panduan. Untuk diagnosis konklusif, konsultasikan dengan ahli patologi tanaman profesional."
 )
