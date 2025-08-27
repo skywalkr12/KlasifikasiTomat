@@ -28,7 +28,6 @@ diseases = {
         "image": "Healthy.jpg",
     },
 
-    # ---------- 1) Spider mites — RENDAH → SEDANG ----------
     "Spider Mites": {
         "desc": [
             "Bintik keperakan (stippling) & bronzing pada daun, kadang kecokelatan.",
@@ -42,7 +41,6 @@ diseases = {
         "image": "Spider Mites.jpg",
     },
 
-    # ---------- 2) Leaf mold — RENDAH → SEDANG ----------
     "Leaf Mold": {
         "desc": [
             "Bercak kuning di atas daun; bawah daun berlapis jamur zaitun/kehijauan (beludru).",
@@ -56,7 +54,6 @@ diseases = {
         "image": "Leaf Mold.jpg",
     },
 
-    # ---------- 3) Septoria leaf spot — SEDANG ----------
     "Septoria Leaf Spot": {
         "desc": [
             "Banyak bercak kecil (±1–3 mm) berpusat pucat dengan titik hitam (pycnidia) terutama di daun bawah.",
@@ -70,7 +67,6 @@ diseases = {
         "image": "Septoria Leaf Spot.jpg",
     },
 
-    # ---------- 4) TMV/ToMV — SEDANG → TINGGI ----------
     "Tomato Mosaic Virus (TMV)": {
         "desc": [
             "Mozaik hijau–kuning, daun menyempit/keriting, tanaman kerdil.",
@@ -84,7 +80,6 @@ diseases = {
         "image": "Tomato Mosaic Virus (TMV).JPG",
     },
 
-    # ---------- 5) Bacterial spot — SEDANG → TINGGI ----------
     "Bacterial Spot": {
         "desc": [
             "Bercak kecil berair → nekrotik pada daun; tepi kuning. Pada buah: bercak kasar/berlekuk.",
@@ -98,7 +93,6 @@ diseases = {
         "image": "Bacterial Spot.jpg",
     },
 
-    # ---------- 6) Target spot — TINGGI ----------
     "Target Spot": {
         "desc": [
             "Lesi bertarget (cincin konsentris) dengan pusat keabu-abuan; defoliasi terutama di kanopi bagian dalam.",
@@ -112,7 +106,6 @@ diseases = {
         "image": "Target Spot.jpg",
     },
 
-    # ---------- 7) Early blight — TINGGI ----------
     "Early Blight": {
         "desc": [
             "Bercak cokelat ‘bullseye’ (lingkar konsentris) pada daun tua → defoliasi; dapat ke batang/buah.",
@@ -126,7 +119,6 @@ diseases = {
         "image": "Early Blight.jpg",
     },
 
-    # ---------- 8) Late blight — SANGAT TINGGI ----------
     "Late Blight": {
         "desc": [
             "Bercak berminyak cepat meluas; tepi bawah daun bersporulasi putih; menyerang daun, batang, buah.",
@@ -140,7 +132,6 @@ diseases = {
         "image": "Late Blight.jpg",
     },
 
-    # ---------- 9) TYLCV — EKSTREM ----------
     "Tomato Yellow Leaf Curl Virus (TYLCV)": {
         "desc": [
             "Daun kecil menguning & menggulung ke atas; tanaman kerdil; gugur bunga → kehilangan hasil besar.",
@@ -179,7 +170,6 @@ def render_numbered(title: str, items):
     if isinstance(items, (list, tuple)):
         st.markdown("\n".join([f"{i}. {text}" for i, text in enumerate(items, start=1)]))
     else:
-        # fallback untuk string
         st.markdown(items)
 
 def render_sources(srcs):
@@ -192,27 +182,26 @@ def render_sources(srcs):
         for s in srcs:
             st.markdown(f"- [{s}]({s})")
 
-# --- REVISI: Fungsi untuk merender setiap seksi penyakit ---
+# --- REVISI FINAL: Fungsi untuk merender seksi penyakit dengan background gradasi ---
 def render_section(name: str, data: dict):
-    # CSS untuk membuat border gradasi putih-hijau
-    st.markdown(
-        f"""
-        <div style="
-            border: 2px solid;
-            border-image: linear-gradient(to right, white, #28a745);
-            border-image-slice: 1;
-            border-radius: 10px;
-            padding: 20px;
-            margin-bottom: 25px;
-        ">
-            <h3>{name}</h3>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-    
-    # Gunakan st.container() untuk menampung konten di dalam border
-    with st.container():
+    # Gunakan st.container dengan border untuk membungkus semuanya
+    with st.container(border=True):
+        # CSS untuk background gradasi
+        st.markdown(
+            f"""
+            <style>
+                /* Target container yang baru dibuat oleh Streamlit */
+                .st-emotion-cache-1f1G2gn{{
+                    background: linear-gradient(to right, #FFFFFF, #E0F2F1); /* Gradasi Putih ke Hijau Mint */
+                    color: #000000; /* Warna teks hitam agar terbaca */
+                }}
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
+
+        st.subheader(name)
+        
         sev = data.get("severity", "")
         if sev:
             st.caption(f"Tingkat keparahan (lokal): {sev}")
