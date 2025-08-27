@@ -16,6 +16,14 @@ Gunakan menu di sidebar untuk membaca informasi terkait penyakit tanaman tomat d
 
 st.image("Beranda_tomat.jpeg", use_container_width=True)
 
+st.header("🌱 Tentang Aplikasi Ini")
+    st.markdown("""
+    Aplikasi ini dikembangkan untuk membantu petani dan penggemar tanaman dalam mengidentifikasi penyakit pada daun tomat menggunakan **Model Convolutional Neural Network (CNN) berbasis ResNet9**. 
+    Tujuan kami adalah menyediakan alat diagnostik awal yang cepat dan mudah digunakan.
+    """)
+    st.markdown("[Pelajari Lebih Lanjut tentang ResNet9](https://link-ke-dokumentasi-model-anda.com)") # Ganti dengan link relevan
+    st.markdown("---")
+
 st.write("""
 Sektor pertanian memegang peranan penting dalam mendorong pertumbuhan ekonomi nasional. 
 Secara umum, sektor ini terdiri atas beberapa subsektor, seperti hortikultura, perkebunan, dan tanaman pangan. 
@@ -47,6 +55,7 @@ st.markdown("""
 <a href="https://www.facebook.com/skywalkr12" target="blank_">Facebook</a>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
