@@ -181,8 +181,8 @@ def _make_color_overlay(pil_img, masks, alpha=0.45):
     return Image.fromarray(overlay)
 
 # ========== Streamlit UI ==========
-st.set_page_config(page_title="Prediksi Penyakit Tomat + Deteksi Kekuningan/Kelayuan", layout="wide")
-st.title("🟡 Deteksi Kekuningan & Kelayuan + 🔍 Prediksi Penyakit Tomat")
+st.set_page_config(page_title="🌿 Klasifikasi Penyakit Tanaman Tomat + 🟡 Deteksi Kekuningan & Kelayuan", layout="wide")
+st.title("🌿 Klasifikasi Penyakit Tanaman Tomat + 🟡 Deteksi Kekuningan & Kelayuan")
 
 if "history" not in st.session_state:
     st.session_state["history"] = []
@@ -353,4 +353,5 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
 
