@@ -4,3 +4,4 @@ H:/Farhan/Skripsi/Modelling filter=lfs diff=lfs merge=lfs -text
 4/KlasifikasiTomat/model/resnet9_99(1).pt filter=lfs diff=lfs merge=lfs -text
 *.pt filter=lfs diff=lfs merge=lfs -text
 resnet9(99,16).pt filter=lfs diff=lfs merge=lfs -text
+best_model6.pt filter=lfs diff=lfs merge=lfs -text
