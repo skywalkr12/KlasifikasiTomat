@@ -1,6 +1,6 @@
 import streamlit as st
 
-st.set_page_config(page_title="🩺 Informasi Penyakit Tanaman Tomat", layout="centered")
+st.set_page_config(page_title="🩺 Informasi Penyakit Tanaman Tomat", layout="wide")
 
 # =========================
 # DATA (Healthy: biarkan/ubah sesuai punyamu)
@@ -230,3 +230,4 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
