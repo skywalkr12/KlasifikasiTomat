@@ -248,6 +248,10 @@ if uploaded_file:
 
     # Ringkasan metrik kekuningan & kelayuan
     st.subheader("📊 Deteksi Kekuningan & Kelayuan")
+    st.write("""
+Analisis kekuningan/kelayuan hanya membantu memetakan gejala visual, bukan diagnosis final.
+Kombinasikan dengan prediksi kelas dan pemeriksaan lapang.
+""")
     mcol1, mcol2, mcol3, mcol4 = st.columns(4)
     with mcol1:
         st.metric("Rasio Kuning", fmt_pct(color_stats["yellow_ratio"]))
@@ -323,6 +327,7 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
 
 
 
