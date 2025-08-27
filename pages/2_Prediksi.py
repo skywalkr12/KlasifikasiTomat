@@ -106,7 +106,7 @@ def fmt_pct(p: float, cap: float = DISPLAY_CAP, decimals: int = 2) -> str:
     q = cap_for_display(float(p), cap)
     return f"{q*100:.{decimals}f}%"
 
-# ----- Sidebar (pilihan layer tetap) -----
+# ----- Sidebar (pilihan layer seperti awal) -----
 with st.sidebar:
     st.header("Pengaturan Visualisasi")
     target_layer_name = st.selectbox(
@@ -116,12 +116,14 @@ with st.sidebar:
     )
     alpha = st.slider("Transparansi Heatmap (α)", 0.0, 1.0, 0.45, 0.05)
     topk  = st.slider("Jumlah alternatif (Top-k)", 1, min(5, len(CLASS_NAMES)), 3, 1)
+
     st.markdown("---")
     mask_bg = st.checkbox("Mask background (fokus ke daun)", True)
     blend_with_res2 = st.checkbox("Blend dengan res2 (stabilkan semantik)", True)
     erode_border = st.checkbox("Erosi tepi mask 1px (redam pinggiran daun)", True)
     lesion_boost = st.checkbox("Deteksi bintik (aktifkan lesion prior)", True)
     lesion_weight = st.slider("Bobot deteksi bintik (lesion prior)", 0.0, 1.0, 0.5, 0.05)
+
     st.markdown("---")
     show_full_chart = st.checkbox("Tampilkan chart probabilitas lengkap", True)
     sort_desc = st.checkbox("Urutkan chart menurun", True)
@@ -171,7 +173,7 @@ if uploaded_file:
             width="stretch"
         )
 
-    # Alternatif (Top-k)
+    # Alternatif (Top-k) — teks
     topk_ = min(topk, len(CLASS_NAMES))
     order = np.argsort(-probs_raw)[:topk_]
     st.markdown("**Alternatif (Top-k)**")
@@ -180,7 +182,7 @@ if uploaded_file:
         for i in order
     ]))
 
-    # Chart probabilitas (opsional)
+    # Chart probabilitas lengkap (opsional)
     if show_full_chart:
         st.subheader("📊 Probabilitas per Kelas")
         probs_plot = np.minimum(np.array(probs_raw, dtype=float), DISPLAY_CAP)
