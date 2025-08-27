@@ -311,7 +311,7 @@ if st.session_state["history"]:
     st.download_button("⬇️ Download CSV", csv, "histori_prediksi.csv", "text/csv")
 
 st.write("""
-Catatan: Analisis kekuningan/kelayuan memetakan gejala visual, bukan diagnosis final.
+Analisis kekuningan/kelayuan hanya membantu memetakan gejala visual, bukan diagnosis final.
 Kombinasikan dengan prediksi kelas dan pemeriksaan lapang.
 """)
 
@@ -328,4 +328,5 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
 
