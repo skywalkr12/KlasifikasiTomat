@@ -22,7 +22,6 @@ Aplikasi ini dikembangkan untuk membantu petani dan penggemar tanaman dalam meng
 Tujuan dibuatnya website ini adalah menyediakan visualisasi hasil klasifikasi Penyakit Tanaman Tomat secara informatif
 """)
 st.markdown("[Pelajari Lebih Lanjut tentang ResNet](https://pytorch.org/hub/pytorch_vision_resnet/)") # Ganti dengan link relevan
-st.markdown("---")
 
 # Footer
 st.markdown("---")
@@ -39,6 +38,7 @@ st.markdown("""
 <a href="https://www.facebook.com/skywalkr12" target="blank_">Facebook</a>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
