@@ -1,5 +1,5 @@
 # helper.py
-# — ResNet9-variant + Grad-CAM (+ external leaf mask) + Brown/Wilt priors infra —
+# — ResNet9-variant + Grad-CAM (external leaf mask support) —
 # Tidak ada rendering Streamlit di file ini. Semua tampilan diatur dari prediksi.py.
 
 import torch, numpy as np
@@ -22,7 +22,8 @@ class SimpleResidualBlock(nn.Module):
         self.conv2 = nn.Conv2d(3, 3, 3, 1, 1)
         self.relu2 = nn.ReLU(inplace=False)
     def forward(self, x):
-        out = self.relu1(self.conv1(x))
+        out = self.conv1(x)
+        out = self.relu1(out)
         out = self.conv2(out)
         return self.relu2(out) + x
 
@@ -107,7 +108,7 @@ def load_model(weights_path: str = "model/resnet9(99,16).pt", cache_bust: str = 
         sd = sd["model_state_dict"]
     sd = { (k.replace("module.","") if k.startswith("module.") else k): v for k,v in sd.items() }
     model.load_state_dict(sd, strict=True)
-    # Non-inplace ReLU agar aman untuk backward hook Grad-CAM
+    # Non-inplace ReLU → aman untuk backward hook Grad-CAM
     for m in model.modules():
         if isinstance(m, nn.ReLU):
             m.inplace = False
@@ -119,7 +120,7 @@ def load_model(weights_path: str = "model/resnet9(99,16).pt", cache_bust: str = 
 def predict_image(model, image: Image.Image):
     x = transform(image).unsqueeze(0)
     out = model(x)
-    probs_raw = torch.softmax(out[0], dim=0).cpu().numpy()
+    probs_raw = torch.softmax(out[0], dim=0).cpu().numpy()  # sum=1
     idx = int(np.argmax(probs_raw))
     return CLASS_NAMES[idx], probs_raw, out[0].detach().cpu().numpy()
 
@@ -144,6 +145,7 @@ def _overlay(pil_img: Image.Image, cam_hw01: np.ndarray, alpha: float = 0.45) ->
     out = np.clip(out, 0, 1)
     return Image.fromarray((out * 255).astype(np.uint8))
 
+# --- Erosi sederhana (min-filter) untuk mask float 0..1 ---
 def _erode_min(mask: np.ndarray, k: int = 3, iters: int = 1) -> np.ndarray:
     if k <= 1 or iters <= 0: return mask
     m = mask.copy()
@@ -158,7 +160,7 @@ def _erode_min(mask: np.ndarray, k: int = 3, iters: int = 1) -> np.ndarray:
         m = out
     return m
 
-# ========= Leaf mask HSV lama (fallback) =========
+# ========= Mask/priors lama (fallback internal bila external mask tak diberikan) =========
 def _leaf_mask_hsv_with_brown(pil_img: Image.Image) -> np.ndarray:
     hsv = np.asarray(pil_img.convert("HSV")).astype(np.int32)
     H, S, V = hsv[...,0], hsv[...,1], hsv[...,2]
@@ -167,7 +169,7 @@ def _leaf_mask_hsv_with_brown(pil_img: Image.Image) -> np.ndarray:
     brown1 = (H>=8)  & (H<=35)  & (S>=50) & (V>=20) & (V<=200)
     brown2 = (H<=8)  & (S>=60)  & (V>=10) & (V<=180)
     mask = (green | yellow | brown1 | brown2).astype(np.float32)
-    # smoothing box 3x3 ringan
+    # halus tipis (box 3x3)
     if mask.sum() > 0:
         k = 3; pad = k // 2
         padded = np.pad(mask, ((pad,pad),(pad,pad)), mode="edge")
@@ -178,7 +180,6 @@ def _leaf_mask_hsv_with_brown(pil_img: Image.Image) -> np.ndarray:
         mask = np.clip(smoothed, 0, 1)
     return mask
 
-# ========= Lesion prior (brownness + darkness) =========
 def _lesion_prior_brown(pil_img: Image.Image) -> np.ndarray:
     rgb = np.asarray(pil_img.convert("RGB")).astype(np.float32) / 255.0
     r, g, b = rgb[...,0], rgb[...,1], rgb[...,2]
@@ -187,7 +188,7 @@ def _lesion_prior_brown(pil_img: Image.Image) -> np.ndarray:
     V = np.asarray(pil_img.convert("HSV"))[...,2].astype(np.float32) / 255.0
     darkness = np.clip((0.8 - V) / 0.8, 0, 1)
     prior = 0.6 * brownness + 0.4 * darkness
-    # smoothing box 3x3
+    # haluskan box 3x3
     k = 3; pad = k // 2
     padded = np.pad(prior, ((pad,pad),(pad,pad)), mode="edge")
     sm = np.zeros_like(prior)
@@ -200,15 +201,15 @@ def _resize_like(cam_src: torch.Tensor, cam_ref: torch.Tensor) -> torch.Tensor:
     if cam_src.shape == cam_ref.shape: return cam_src
     return _upsample_cam(cam_src, (cam_ref.shape[0], cam_ref.shape[1]))
 
-# ========= Target layer =========
+# ========= Target layer Grad-CAM =========
 def get_target_layer(model: nn.Module, name: str):
-    if name == "res2":            return model.res2           # utama (Sequential)
-    if name == "conv4_prepool":   return model.conv4[1]       # BN pada conv4
+    if name == "res2":            return model.res2            # hook Sequential res2 (seperti awal)
+    if name == "conv4_prepool":   return model.conv4[1]
     if name == "conv3_prepool":   return model.conv3[1]
     if name == "conv2_prepool":   return model.conv2[1]
     raise ValueError(f"target_layer tidak dikenal: {name}")
 
-# ========= Grad-CAM =========
+# ========= Grad-CAM standar =========
 class GradCAM:
     def __init__(self, model: nn.Module, target_layer: nn.Module):
         self.model = model.eval()
@@ -239,7 +240,7 @@ class GradCAM:
             cam = _normalize_cam(cam)
         return cam, class_idx, probs.detach().cpu().numpy()
 
-# ========= API utama =========
+# ========= API utama (mendukung external_leaf_mask & res2-fallback) =========
 def gradcam_on_pil(
     model: nn.Module,
     pil_img: Image.Image,
@@ -252,8 +253,8 @@ def gradcam_on_pil(
     lesion_weight: float = 0.5,
     blend_with_res2: bool = False,
     erode_border: bool = True,
-    external_leaf_mask: np.ndarray | None = None,  # <<— mask dari gate (H,W) {0,1}
-    auto_res2_fallback: bool = True                # <<— hidupkan fallback bila res2 datar
+    external_leaf_mask: np.ndarray | None = None,  # ← ditambahkan
+    auto_res2_fallback: bool = True                # ← ditambahkan
 ):
     x = transform(pil_img).unsqueeze(0)
 
@@ -265,12 +266,11 @@ def gradcam_on_pil(
     finally:
         engine.remove()
 
-    # Fallback untuk res2 kosong
+    # Fallback untuk kasus CAM res2 yang datar
     if target_layer_name == "res2" and auto_res2_fallback:
         if float((cam.max() - cam.min()).item()) < 1e-6 or float(cam.mean().item()) < 1e-5:
-            # coba pakai blok terakhir di res2 (ConvBlock kedua)
             try:
-                tl2 = model.res2[1]
+                tl2 = model.res2[1]  # blok kedua res2
                 engine2 = GradCAM(model, tl2)
                 try:
                     cam2, used_idx, probs = engine2.compute(x, class_idx=used_idx)
@@ -278,7 +278,7 @@ def gradcam_on_pil(
                     engine2.remove()
                 cam = cam2
             except Exception:
-                # terakhir: jatuh ke conv3_prepool
+                # terakhir: pakai conv3_prepool
                 tl3 = get_target_layer(model, "conv3_prepool")
                 engine3 = GradCAM(model, tl3)
                 try:
@@ -287,7 +287,7 @@ def gradcam_on_pil(
                     engine3.remove()
                 cam = cam3
 
-    # Blend dengan res2 jika diminta
+    # Blend dengan res2 (bila diminta dan bukan res2)
     if blend_with_res2 and target_layer_name != "res2":
         tl2 = get_target_layer(model, "res2")
         engine2 = GradCAM(model, tl2)
@@ -302,12 +302,14 @@ def gradcam_on_pil(
     H, W = pil_img.size[1], pil_img.size[0]
     cam_up = _upsample_cam(cam, (H, W))
 
-    # Mask daun (pakai external mask jika ada)
+    # Mask daun (prioritas: external mask dari gate)
     if mask_bg:
         if external_leaf_mask is not None:
             m = np.asarray(external_leaf_mask).astype(np.float32)
-            if m.max() > 1.0: m = (m > 0).astype(np.float32)
+            if m.max() > 1.0:
+                m = (m > 0).astype(np.float32)
         else:
+            # fallback HSV (lama) jika external tidak tersedia
             if include_brown:
                 m = _leaf_mask_hsv_with_brown(pil_img)
             else:
@@ -343,8 +345,8 @@ def show_prediction_and_cam(
     lesion_weight: float = 0.5,
     blend_with_res2: bool = False,
     erode_border: bool = True,
-    external_leaf_mask: np.ndarray | None = None,
-    auto_res2_fallback: bool = True
+    external_leaf_mask: np.ndarray | None = None,  # ← ditambahkan
+    auto_res2_fallback: bool = True                # ← ditambahkan
 ):
     # Prediksi RAW
     with torch.no_grad():
@@ -353,7 +355,7 @@ def show_prediction_and_cam(
         probs_raw = torch.softmax(out[0], dim=0).cpu().numpy()
         used_idx = int(np.argmax(probs_raw))
 
-    # Grad-CAM kelas teratas
+    # CAM untuk kelas teratas
     overlay, cam, _, _, _ = gradcam_on_pil(
         model, pil_img,
         target_layer_name=target_layer_name,
