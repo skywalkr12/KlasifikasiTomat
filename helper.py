@@ -52,7 +52,7 @@ def ConvBlock(in_channels, out_channels, pool=False):
         layers.append(nn.MaxPool2d(4))
     return nn.Sequential(*layers)
 
-# ========= Model (ResNet9-variant, class-name dibiarkan ResNet18 untuk kompatibilitas) =========
+# ========= Model (ResNet9-variant) =========
 class ResNet9(ImageClassificationBase):
     def __init__(self, num_diseases=10, in_channels=3):
         super().__init__()
@@ -191,7 +191,8 @@ def _lesion_prior_brown(pil_img: Image.Image) -> np.ndarray:
     rgb = np.asarray(pil_img.convert("RGB")).astype(np.float32) / 255.0
     r, g, b = rgb[...,0], rgb[...,1], rgb[...,2]
     brownness = np.clip((r - g), 0, 1) + np.clip((r - b), 0, 1)
-    brownness = brownness / (brownness.max() + 1e-6)
+    mx = brownness.max()
+    brownness = brownness / (mx + 1e-6) if mx > 0 else brownness
     V = np.asarray(pil_img.convert("HSV"))[...,2].astype(np.float32) / 255.0
     darkness = np.clip((0.8 - V) / 0.8, 0, 1)
     prior = 0.6 * brownness + 0.4 * darkness
@@ -204,6 +205,26 @@ def _lesion_prior_brown(pil_img: Image.Image) -> np.ndarray:
             sm[i,j] = padded[i:i+k, j:j+k].mean()
     return np.clip(sm, 0, 1)
 
+# ========= Chlorosis suppressor (turunkan CAM pada kuning cerah non-brown) =========
+def _chlorosis_mask(pil_img: Image.Image) -> np.ndarray:
+    hsv = np.asarray(pil_img.convert("HSV")).astype(np.int32)
+    H,S,V = hsv[...,0], hsv[...,1], hsv[...,2]
+    yellow = (H>=35) & (H<=60) & (S>=60) & (V>=110)  # kuning kuat & terang
+    rgb = np.asarray(pil_img.convert("RGB")).astype(np.float32) / 255.0
+    r,g,b = rgb[...,0], rgb[...,1], rgb[...,2]
+    non_brown = ( (r - g) < 0.02 ) & ( (r - b) < 0.02 )  # tidak kemerahan
+    m = (yellow & non_brown).astype(np.float32)
+    # haluskan ringan
+    if m.sum() > 0:
+        k = 3; pad = k // 2
+        padded = np.pad(m, ((pad,pad),(pad,pad)), mode="edge")
+        sm = np.zeros_like(m)
+        for i in range(m.shape[0]):
+            for j in range(m.shape[1]):
+                sm[i,j] = padded[i:i+k, j:j+k].mean()
+        m = np.clip(sm, 0, 1)
+    return m
+
 def _resize_like(cam_src: torch.Tensor, cam_ref: torch.Tensor) -> torch.Tensor:
     if cam_src.shape == cam_ref.shape: return cam_src
     return _upsample_cam(cam_src, (cam_ref.shape[0], cam_ref.shape[1]))
@@ -211,7 +232,7 @@ def _resize_like(cam_src: torch.Tensor, cam_ref: torch.Tensor) -> torch.Tensor:
 # ========= Target layer Grad-CAM =========
 def get_target_layer(model: nn.Module, name: str):
     if name == "res2":            return model.res2
-    if name == "conv4_prepool":   return model.conv4[1]
+    if name == "conv4_prepool":   return model.conv4[1]  # BN sebelum MaxPool
     if name == "conv3_prepool":   return model.conv3[1]
     if name == "conv2_prepool":   return model.conv2[1]
     raise ValueError(f"target_layer tidak dikenal: {name}")
@@ -251,7 +272,7 @@ class GradCAM:
 def gradcam_on_pil(
     model: nn.Module,
     pil_img: Image.Image,
-    target_layer_name: str = "conv3_prepool",
+    target_layer_name: str = "res2",
     class_idx: int | None = None,
     alpha: float = 0.45,
     mask_bg: bool = True,
@@ -259,7 +280,9 @@ def gradcam_on_pil(
     lesion_boost: bool = True,
     lesion_weight: float = 0.5,
     blend_with_res2: bool = False,
-    erode_border: bool = True
+    erode_border: bool = True,
+    suppress_chlorosis: bool = True,
+    chlorosis_weight: float = 0.35
 ):
     x = transform(pil_img).unsqueeze(0)
 
@@ -306,6 +329,12 @@ def gradcam_on_pil(
         cam_up = cam_up * (1.0 + float(lesion_weight) *
                            torch.tensor(prior, dtype=cam_up.dtype, device=cam_up.device))
 
+    # Turunkan respon pada klorosis (kuning terang non-brown) agar tidak salah fokus
+    if suppress_chlorosis:
+        chl = _chlorosis_mask(pil_img)
+        cam_up = cam_up * (1.0 - float(chlorosis_weight) *
+                           torch.tensor(chl, dtype=cam_up.dtype, device=cam_up.device))
+
     cam_up = _normalize_cam(cam_up).cpu().numpy()
     overlay = _overlay(pil_img, cam_up, alpha=alpha)
     pred_label = CLASS_NAMES[used_idx] if 0 <= used_idx < len(CLASS_NAMES) else str(used_idx)
@@ -316,13 +345,15 @@ def show_prediction_and_cam(
     pil_img: Image.Image,
     alpha: float = 0.45,
     topk: int = 3,
-    target_layer_name: str = "conv3_prepool",
+    target_layer_name: str = "res2",
     mask_bg: bool = True,
     include_brown: bool = True,
     lesion_boost: bool = True,
     lesion_weight: float = 0.5,
     blend_with_res2: bool = False,
-    erode_border: bool = True
+    erode_border: bool = True,
+    suppress_chlorosis: bool = True,
+    chlorosis_weight: float = 0.35
 ):
     # Prediksi RAW (tanpa clipping)
     with torch.no_grad():
@@ -342,8 +373,9 @@ def show_prediction_and_cam(
         lesion_boost=lesion_boost,
         lesion_weight=lesion_weight,
         blend_with_res2=blend_with_res2,
-        erode_border=erode_border
+        erode_border=erode_border,
+        suppress_chlorosis=suppress_chlorosis,
+        chlorosis_weight=chlorosis_weight
     )
 
     return overlay, cam, used_idx, probs_raw
-
