@@ -21,30 +21,14 @@ st.markdown("""
 Aplikasi ini dikembangkan untuk membantu petani dan penggemar tanaman dalam mengidentifikasi penyakit pada daun tomat menggunakan **Model Convolutional Neural Network (CNN) berbasis ResNet9**. 
 Tujuan kami adalah menyediakan alat diagnostik awal yang cepat dan mudah digunakan.
 """)
-st.markdown("[Pelajari Lebih Lanjut tentang ResNet9](https://link-ke-dokumentasi-model-anda.com)") # Ganti dengan link relevan
+st.markdown("[Pelajari Lebih Lanjut tentang ResNet](https://pytorch.org/hub/pytorch_vision_resnet/)") # Ganti dengan link relevan
 st.markdown("---")
-
-st.write("""
-Sektor pertanian memegang peranan penting dalam mendorong pertumbuhan ekonomi nasional. 
-Secara umum, sektor ini terdiri atas beberapa subsektor, seperti hortikultura, perkebunan, dan tanaman pangan. 
-Di antara ketiganya, subsektor hortikultura, yang mencakup komoditas buah dan sayuran, menjadi komponen krusial dalam mendukung peningkatan Produk Domestik Bruto (PDB). 
-Salah satu komoditas hortikultura yang memiliki prospek tinggi adalah tomat, yaitu sayuran multifungsi dengan beragam kegunaan.
-""")
-
-st.write("""
-Tomat (Solanum lycopersicum) merupakan komoditas hortikultura dengan tingkat konsumsi tinggi di Indonesia. 
-Berdasarkan data dari statistik hortikultura, penurunan produksi tomat mencapai 2,14 % pada 2023, 
-namun produksi tomat diproyeksikan kembali naik hingga sekitar 1 juta ton pada 2025 yang mencerminkan stabilitas 
-dan pemulihan sektor hortikultura
-""")
 
 # Footer
 st.markdown("---")
 
-st.markdown("""
-Sebagai Catatan: Ini adalah alat diagnosis dengan bantuan Kecerdasan Buatan dan sebaiknya digunakan hanya sebagai panduan.
-Untuk diagnosis konklusif, konsultasikan dengan ahli patologi tanaman profesional.
-""")
+st.info( "Perlu diingat: Ini adalah alat diagnosis dengan bantuan Kecerdasan Buatan dan sebaiknya digunakan hanya sebagai panduan. Untuk diagnosis konklusif, konsultasikan dengan ahli patologi tanaman profesional."
+)
 
 st.markdown("""
 
@@ -55,6 +39,7 @@ st.markdown("""
 <a href="https://www.facebook.com/skywalkr12" target="blank_">Facebook</a>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
