@@ -5,3 +5,5 @@ pillow
 matplotlib
 opencv-python-headless>=4.9.0
 pandas
+pathlib
+html
