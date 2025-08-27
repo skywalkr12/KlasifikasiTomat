@@ -1,7 +1,4 @@
 import streamlit as st
-import base64
-from pathlib import Path
-import html # <-- TAMBAHAN PENTING untuk membersihkan teks
 
 st.set_page_config(page_title="🩺 Informasi Penyakit Tanaman Tomat", layout="centered")
 
@@ -31,6 +28,7 @@ diseases = {
         "image": "Healthy.jpg",
     },
 
+    # ---------- 1) Spider mites — RENDAH → SEDANG ----------
     "Spider Mites": {
         "desc": [
             "Bintik keperakan (stippling) & bronzing pada daun, kadang kecokelatan.",
@@ -44,6 +42,7 @@ diseases = {
         "image": "Spider Mites.jpg",
     },
 
+    # ---------- 2) Leaf mold — RENDAH → SEDANG ----------
     "Leaf Mold": {
         "desc": [
             "Bercak kuning di atas daun; bawah daun berlapis jamur zaitun/kehijauan (beludru).",
@@ -57,6 +56,7 @@ diseases = {
         "image": "Leaf Mold.jpg",
     },
 
+    # ---------- 3) Septoria leaf spot — SEDANG ----------
     "Septoria Leaf Spot": {
         "desc": [
             "Banyak bercak kecil (±1–3 mm) berpusat pucat dengan titik hitam (pycnidia) terutama di daun bawah.",
@@ -70,6 +70,7 @@ diseases = {
         "image": "Septoria Leaf Spot.jpg",
     },
 
+    # ---------- 4) TMV/ToMV — SEDANG → TINGGI ----------
     "Tomato Mosaic Virus (TMV)": {
         "desc": [
             "Mozaik hijau–kuning, daun menyempit/keriting, tanaman kerdil.",
@@ -83,6 +84,7 @@ diseases = {
         "image": "Tomato Mosaic Virus (TMV).JPG",
     },
 
+    # ---------- 5) Bacterial spot — SEDANG → TINGGI ----------
     "Bacterial Spot": {
         "desc": [
             "Bercak kecil berair → nekrotik pada daun; tepi kuning. Pada buah: bercak kasar/berlekuk.",
@@ -96,6 +98,7 @@ diseases = {
         "image": "Bacterial Spot.jpg",
     },
 
+    # ---------- 6) Target spot — TINGGI ----------
     "Target Spot": {
         "desc": [
             "Lesi bertarget (cincin konsentris) dengan pusat keabu-abuan; defoliasi terutama di kanopi bagian dalam.",
@@ -109,6 +112,7 @@ diseases = {
         "image": "Target Spot.jpg",
     },
 
+    # ---------- 7) Early blight — TINGGI ----------
     "Early Blight": {
         "desc": [
             "Bercak cokelat ‘bullseye’ (lingkar konsentris) pada daun tua → defoliasi; dapat ke batang/buah.",
@@ -122,6 +126,7 @@ diseases = {
         "image": "Early Blight.jpg",
     },
 
+    # ---------- 8) Late blight — SANGAT TINGGI ----------
     "Late Blight": {
         "desc": [
             "Bercak berminyak cepat meluas; tepi bawah daun bersporulasi putih; menyerang daun, batang, buah.",
@@ -135,6 +140,7 @@ diseases = {
         "image": "Late Blight.jpg",
     },
 
+    # ---------- 9) TYLCV — EKSTREM ----------
     "Tomato Yellow Leaf Curl Virus (TYLCV)": {
         "desc": [
             "Daun kecil menguning & menggulung ke atas; tanaman kerdil; gugur bunga → kehilangan hasil besar.",
@@ -168,65 +174,44 @@ ordered_keys = [
 # =========================
 # HELPERS
 # =========================
-def image_to_base64(image_path):
-    try:
-        with open(image_path, "rb") as img_file:
-            return base64.b64encode(img_file.read()).decode()
-    except Exception:
-        return None
+def render_numbered(title: str, items):
+    st.markdown(f"**{title}**")
+    if isinstance(items, (list, tuple)):
+        st.markdown("\n".join([f"{i}. {text}" for i, text in enumerate(items, start=1)]))
+    else:
+        # fallback untuk string
+        st.markdown(items)
+
+def render_sources(srcs):
+    if not srcs:
+        return
+    st.markdown("**Sumber:**")
+    if isinstance(srcs, str):
+        st.markdown(f"- [{srcs}]({srcs})")
+    else:
+        for s in srcs:
+            st.markdown(f"- [{s}]({s})")
 
 def render_section(name: str, data: dict):
-    # 1. Siapkan semua konten dan BERSIHKAN (escape) teksnya
-    severity = html.escape(data.get("severity", "—"))
-    clean_name = html.escape(name)
-    
+    st.subheader(name)
+    sev = data.get("severity", "")
+    if sev:
+        st.caption(f"Tingkat keparahan (lokal): {sev}")
     img_path = data.get("image")
-    image_html = ""
     if img_path:
-        # Asumsikan folder 'images' ada di direktori yang sama dengan skrip
-        full_image_path = Path("images") / img_path
-        base64_image = image_to_base64(full_image_path)
-        if base64_image:
-            image_html = f'<div style="text-align: center; margin-bottom: 20px;"><img src="data:image/jpeg;base64,{base64_image}" style="width: 300px; max-width: 100%; border-radius: 5px;"></div>'
-
-    desc_items = data.get("desc", [])
-    # PERBAIKAN: Gunakan html.escape() pada setiap item
-    desc_html = "<ol>" + "".join([f"<li>{html.escape(item)}</li>" for item in desc_items]) + "</ol>"
-
-    handling_items = data.get("handling", [])
-    # PERBAIKAN: Gunakan html.escape() pada setiap item
-    handling_html = "<ol>" + "".join([f"<li>{html.escape(item)}</li>" for item in handling_items]) + "</ol>"
-
-    # 2. Gabungkan semua menjadi satu string HTML besar
-    full_html = f"""
-    <div style="
-        background: linear-gradient(to right, #FFFFFF, #E0F2F1);
-        border: 1px solid #CCCCCC;
-        border-radius: 10px;
-        padding: 20px;
-        margin-bottom: 25px;
-        color: #000000;
-        font-family: sans-serif;
-    ">
-        <h3>{clean_name}</h3>
-        <p style="font-size: 0.9em; color: #555; margin-top: -10px;">Tingkat keparahan (lokal): {severity}</p>
-        
-        {image_html}
-        
-        <b>Ciri-ciri/Gejala & Catatan:</b>
-        {desc_html}
-        
-        <b>Pencegahan & Penanganan:</b>
-        {handling_html}
-    </div>
-    """
-    st.markdown(full_html, unsafe_allow_html=True)
+        try:
+            st.image(f"images/{img_path}", width=260)
+        except Exception:
+            pass
+    render_numbered("Ciri-ciri/Gejala & Catatan:", data.get("desc", "-"))
+    render_numbered("Pencegahan & Penanganan:", data.get("handling", "-"))
+    render_sources(data.get("sources", []))
+    st.divider()
 
 # =========================
 # UI
 # =========================
 st.title("🩺 Informasi Penyakit Tanaman Tomat (Beserta Tingkat Keparahan)")
-st.markdown("---")
 
 for key in ordered_keys:
     if key in diseases:
