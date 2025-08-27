@@ -1,7 +1,7 @@
 # prediksi.py
 # -- Gate "tomato-only" (LAB + anti-skin, sederhana) + Prediksi + Grad-CAM
-# -- + Deteksi Kekuningan (chlorosis) & Indikator Kelayuan (wilt)
-# Tambahkan ke requirements.txt: opencv-python-headless>=4.9.0
+# -- + Deteksi Kekuningan & Kelayuan + Mode CAM: Standar/Brown/Wilt/Brown+Wilt
+# requires: opencv-python-headless>=4.9.0, matplotlib>=3.5 (sudah dipakai)
 
 import streamlit as st
 from PIL import Image
@@ -25,9 +25,11 @@ def _leaf_mask_lab(img_rgb,
     L, A, B = lab[..., 0], lab[..., 1], lab[..., 2]
     a = A.astype(np.int16) - 128
     b = B.astype(np.int16) - 128
+
     green  = (a <= a_green_max) & (L >= L_min) & (L <= L_max)
     yellow = (a >  a_green_max) & (a < a_brown_min) & (b >= b_yellow_min) & (L >= L_min) & (L <= L_max)
     brown  = (a >= a_brown_min) & (b >= b_yellow_min) & (L >= L_min)
+
     m = (green | yellow | brown).astype(np.uint8)
     m = cv2.morphologyEx(m, cv2.MORPH_OPEN,  np.ones((5,5), np.uint8))
     m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, np.ones((7,7), np.uint8))
@@ -56,7 +58,7 @@ def _largest_component_stats(mask01):
 def _green_ratio_hsv(img_rgb, mask01):
     hsv = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2HSV)
     H, S, V = hsv[...,0], hsv[...,1], hsv[...,2]
-    green = ((H>=35) & (H<=85) & (S>=28) & (V>=40)).astype(np.uint8)  # cv2: H∈[0,179]
+    green = ((H>=35) & (H<=85) & (S>=28) & (V>=40)).astype(np.uint8)
     g_in = int((green & mask01).sum())
     area = int(mask01.sum()) + 1
     return float(g_in) / float(area)
@@ -77,33 +79,31 @@ def tomato_gate(pil_image,
     frac, sol = _largest_component_stats(mask)
     green_r   = _green_ratio_hsv(rgb, mask)
     skin_r    = _skin_in_mask_ratio_ycrcb(rgb, mask)
+
     reasons = []
     if frac < min_mask_frac: reasons.append(f"mask kecil ({frac:.2f})")
     if frac > max_mask_frac: reasons.append(f"mask terlalu besar ({frac:.2f})")
     if sol  < min_solidity:  reasons.append(f"solidity rendah ({sol:.2f})")
     if green_r < min_green_ratio: reasons.append(f"hijau rendah ({green_r:.2f})")
     if skin_r  > max_skin_in_mask: reasons.append(f"pola kulit terdeteksi ({skin_r:.2f})")
+
     return (len(reasons) == 0), {
         "mask_frac": frac, "solidity": sol,
         "green_ratio": green_r, "skin_ratio": skin_r,
-        "reasons": reasons, "mask": mask  # ← simpan mask utk analisis lanjut
+        "reasons": reasons, "mask": mask
     }
-# ========== END Gate ==========
 
-# ========== Analisis Kekuningan & Kelayuan ==========
+# ========== Analisis & prior (kuning/cokelat & wilt) ==========
 def _color_masks_hsv(img_rgb, leaf_mask01):
-    """Segmentasi dalam ruang HSV cv2 (H∈[0,179], S,V∈[0,255])."""
     hsv = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2HSV)
     H, S, V = hsv[...,0], hsv[...,1], hsv[...,2]
 
-    # Rentang empiris yang “aman” untuk daun tomat
     green  = ((H>=35) & (H<=85)  & (S>=28) & (V>=40)).astype(np.uint8)
-    yellow = ((H>=20) & (H<=35)  & (S>=60) & (V>=60)).astype(np.uint8)  # chlorosis
+    yellow = ((H>=20) & (H<=35)  & (S>=60) & (V>=60)).astype(np.uint8)
     brown1 = ((H>=5)  & (H<=20)  & (S>=50) & (V>=25) & (V<=210)).astype(np.uint8)
     brown2 = ((H<5)               & (S>=60) & (V>=15) & (V<=180)).astype(np.uint8)
     brown  = (brown1 | brown2).astype(np.uint8)
 
-    # Batasi ke area daun
     green  = green  & leaf_mask01
     yellow = yellow & leaf_mask01
     brown  = brown  & leaf_mask01
@@ -118,67 +118,65 @@ def _color_masks_hsv(img_rgb, leaf_mask01):
     }
     return {"green":green, "yellow":yellow, "brown":brown, "total":total}, stats
 
-def _shape_metrics_for_wilt(leaf_mask01):
-    """Ekstrak metrik bentuk untuk indikasi kelayuan (solidity & roughness)."""
+def _build_brown_prior(mask_brown, k_blur=7):
+    if mask_brown.dtype != np.uint8:
+        mask_brown = mask_brown.astype(np.uint8)
+    prior = cv2.GaussianBlur(mask_brown*255, (k_blur, k_blur), 0).astype(np.float32) / 255.0
+    if prior.max() > 0:
+        prior = prior / prior.max()
+    return prior
+
+def _build_wilt_prior(leaf_mask01):
+    # convex hull deficit
     num, labels = cv2.connectedComponents(leaf_mask01)
     if num <= 1:
-        return {"solidity": 0.0, "roughness": 0.0}
-    # ambil komponen terbesar
+        return np.zeros_like(leaf_mask01, dtype=np.float32)
     best, area = 0, 0
     for lb in range(1, num):
         a = int((labels == lb).sum())
         if a > area:
             best, area = lb, a
     comp = (labels == best).astype(np.uint8)
+
     cnts, _ = cv2.findContours(comp, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not cnts:
-        return {"solidity": 0.0, "roughness": 0.0}
+        return np.zeros_like(leaf_mask01, dtype=np.float32)
     cnt  = max(cnts, key=cv2.contourArea)
     hull = cv2.convexHull(cnt)
-    area_cnt  = max(cv2.contourArea(cnt), 1.0)
-    area_hull = max(cv2.contourArea(hull), 1.0)
-    perim = cv2.arcLength(cnt, closed=True)
+    hull_mask = np.zeros_like(leaf_mask01, dtype=np.uint8)
+    cv2.fillConvexPoly(hull_mask, hull, 1)
 
-    solidity = float(area_cnt / area_hull)
-    # Shape factor: 1 untuk lingkaran; makin besar → tepi makin “kasar / berlekuk”
-    shape_factor = float((perim**2) / (4.0 * np.pi * area_cnt))
-    # Normalisasi empiris → 0..1 (≈1 “kasar sekali”)
-    roughness = float(np.clip((shape_factor - 1.0) / 1.2, 0.0, 1.0))
-    return {"solidity": solidity, "roughness": roughness}
+    deficit = (hull_mask.astype(np.int32) - comp.astype(np.int32))
+    deficit = np.clip(deficit, 0, 1).astype(np.uint8)
 
-def _wilt_and_chlorosis_scores(color_stats, shape_stats):
-    """
-    Skor 0..1 (semakin besar semakin parah). Heuristik terkontrol:
-    - Chlorosis: bergantung pada rasio kuning dan penurunan hijau.
-    - Wilt: bergantung pada (1 - solidity) dan roughness tepi.
-    """
-    y = color_stats["yellow_ratio"]
-    g = color_stats["green_ratio"]
-    chl = np.clip(0.7*(y/0.25) + 0.3*((1.0-g)/0.5), 0.0, 1.0)  # targetkan 25% kuning ~ skor 0.7
-    wilt = np.clip(0.6*((1.0 - shape_stats["solidity"])/0.75) + 0.4*(shape_stats["roughness"]), 0.0, 1.0)
-    return float(chl), float(wilt)
+    # edge roughness map (morphological gradient)
+    k = np.ones((3,3), np.uint8)
+    grad = cv2.dilate(comp, k, 1) - cv2.erode(comp, k, 1)
 
-def _make_color_overlay(pil_img, masks, alpha=0.45):
-    """Overlay warna: green→(0,255,0), yellow→(255,255,0), brown→(255,80,0)."""
-    base = np.asarray(pil_img.convert("RGB")).astype(np.float32)
-    H, W, _ = base.shape
-    overlay = base.copy()
-    color_map = {
-        "yellow": np.array([255, 255,   0], dtype=np.float32),
-        "brown":  np.array([255,  80,   0], dtype=np.float32),
-        "green":  np.array([  0, 255,   0], dtype=np.float32),
-    }
-    for key in ["yellow", "brown", "green"]:
-        m = masks[key].astype(bool)
-        if m.any():
-            layer = np.zeros_like(base); layer[m] = color_map[key]
-            overlay = (1-alpha)*overlay + alpha*layer
-    overlay = np.clip(overlay, 0, 255).astype(np.uint8)
-    return Image.fromarray(overlay)
+    prior = 0.7*deficit.astype(np.float32) + 0.3*grad.astype(np.float32)
+    prior = cv2.GaussianBlur(prior, (7,7), 0)
+    if prior.max() > 1e-6:
+        prior = prior / prior.max()
+    return prior
+
+def _normalize01(arr):
+    arr = arr.astype(np.float32)
+    mn, mx = float(arr.min()), float(arr.max())
+    return (arr - mn) / (mx - mn + 1e-8)
+
+def _overlay_jet(pil_img, cam01, alpha=0.45):
+    """Buat overlay jet dari cam01 (0..1)."""
+    base = np.asarray(pil_img.convert("RGB")).astype(np.float32) / 255.0
+    hm = (np.clip(cam01, 0.0, 1.0) * 255).astype(np.uint8)
+    heat_bgr = cv2.applyColorMap(hm, cv2.COLORMAP_JET)
+    heat = cv2.cvtColor(heat_bgr, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
+    out = (1 - alpha) * base + alpha * heat
+    out = np.clip(out, 0, 1)
+    return Image.fromarray((out*255).astype(np.uint8))
 
 # ========== Streamlit UI ==========
-st.set_page_config(page_title="Prediksi Penyakit Tomat + Grad-CAM + Analisis Kelayuan/Kekuningan", layout="wide")
-st.title("🔍 Prediksi Penyakit Tomat + Grad-CAM + Deteksi Kekuningan & Kelayuan")
+st.set_page_config(page_title="Prediksi Tomat + Grad-CAM (Brown/Wilt-aware)", layout="wide")
+st.title("🔍 Prediksi Penyakit Tomat + Grad-CAM (Mode Brown/Wilt) + Deteksi Kekuningan/Kelayuan")
 
 if "history" not in st.session_state:
     st.session_state["history"] = []
@@ -196,6 +194,11 @@ with st.sidebar:
     target_layer_name = st.selectbox(
         "Layer target Grad-CAM",
         options=["conv4_prepool", "conv3_prepool", "conv2_prepool", "res2"],
+        index=0
+    )
+    cam_mode = st.selectbox(
+        "Mode CAM",
+        options=["Standar", "Brown-aware", "Wilt-aware", "Brown+Wilt"],
         index=0
     )
     alpha = st.slider("Transparansi Heatmap (α)", 0.0, 1.0, 0.45, 0.05)
@@ -219,15 +222,15 @@ uploaded_file = st.file_uploader("Upload gambar daun tomat", type=["jpg", "jpeg"
 if uploaded_file:
     image = Image.open(uploaded_file).convert("RGB")
 
-    # 1) Gate sederhana (sekalian ambil mask)
+    # 1) Gate sederhana
     accept, info_gate = tomato_gate(image)
     if not accept:
         st.error("❌ Ditolak: bukan daun tomat / kualitas kurang memadai → " + ", ".join(info_gate["reasons"]))
         st.stop()
     leaf_mask01 = info_gate["mask"].astype(np.uint8)
 
-    # 2) Prediksi + Grad-CAM
-    overlay, cam, used_idx, probs_raw = show_prediction_and_cam(
+    # 2) Prediksi + Grad-CAM (dapatkan CAM mentah)
+    overlay_std, cam_base, used_idx, probs_raw = show_prediction_and_cam(
         model, image,
         alpha=alpha,
         topk=topk,
@@ -239,12 +242,52 @@ if uploaded_file:
         erode_border=erode_border
     )
 
-    # 3) Analisis kekuningan (chlorosis) & kelayuan (wilt)
+    # 3) Warna & Wilt prior
     rgb = np.array(image.convert("RGB"))
     color_masks, color_stats = _color_masks_hsv(rgb, leaf_mask01)
+    brown_prior = _build_brown_prior(color_masks["brown"], k_blur=9)
+    wilt_prior  = _build_wilt_prior(leaf_mask01)
+
+    # 4) CAM mode re-weighting
+    cam_mod = cam_base.copy()
+    if cam_mode == "Brown-aware":
+        cam_mod = _normalize01(cam_base * (1.0 + 1.0 * brown_prior))
+    elif cam_mode == "Wilt-aware":
+        cam_mod = _normalize01(cam_base * (1.0 + 1.0 * wilt_prior))
+    elif cam_mode == "Brown+Wilt":
+        cam_mod = _normalize01(cam_base * (1.0 + 0.9 * brown_prior + 0.9 * wilt_prior))
+
+    # 5) Overlay untuk mode terpilih
+    overlay = _overlay_jet(image, cam_mod, alpha=alpha)
+
+    # 6) Skor kekuningan & kelayuan (seperti sebelumnya)
+    #    roughness/solidity tetap dihitung via hull; gunakan ulang untuk ringkasan
+    #    (bisa diambil dari gate, tapi kita hitung lagi agar eksplisit)
+    # shape stats:
+    def _shape_metrics_for_wilt(leaf_mask01):
+        num, labels = cv2.connectedComponents(leaf_mask01)
+        if num <= 1: return {"solidity": 0.0, "roughness": 0.0}
+        best, area = 0, 0
+        for lb in range(1, num):
+            a = int((labels == lb).sum())
+            if a > area:
+                best, area = lb, a
+        comp = (labels == best).astype(np.uint8)
+        cnts, _ = cv2.findContours(comp, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not cnts: return {"solidity": 0.0, "roughness": 0.0}
+        cnt  = max(cnts, key=cv2.contourArea)
+        hull = cv2.convexHull(cnt)
+        area_cnt  = max(cv2.contourArea(cnt), 1.0)
+        area_hull = max(cv2.contourArea(hull), 1.0)
+        perim = cv2.arcLength(cnt, closed=True)
+        solidity = float(area_cnt / area_hull)
+        shape_factor = float((perim**2) / (4.0 * np.pi * area_cnt))
+        roughness = float(np.clip((shape_factor - 1.0) / 1.2, 0.0, 1.0))
+        return {"solidity": solidity, "roughness": roughness}
     shape_stats = _shape_metrics_for_wilt(leaf_mask01)
-    chlorosis_score, wilt_score = _wilt_and_chlorosis_scores(color_stats, shape_stats)
-    color_overlay = _make_color_overlay(image, color_masks, alpha=0.45)
+    # skor indikatif
+    chlorosis_score = float(np.clip(0.7*(color_stats["yellow_ratio"]/0.25) + 0.3*((1.0-color_stats["green_ratio"])/0.5), 0.0, 1.0))
+    wilt_score      = float(np.clip(0.6*((1.0 - shape_stats["solidity"])/0.75) + 0.4*(shape_stats["roughness"]), 0.0, 1.0))
 
     # === Panel tampilan ===
     col1, col2, col3 = st.columns([1, 1, 1])
@@ -259,27 +302,22 @@ if uploaded_file:
     with col2:
         st.image(
             overlay,
-            caption=f"Grad-CAM ({target_layer_name}) → {CLASS_NAMES[used_idx]} • Confidence: {fmt_pct(probs_raw[used_idx])}",
+            caption=f"Grad-CAM ({cam_mode}, {target_layer_name}) → {CLASS_NAMES[used_idx]} • Confidence: {fmt_pct(probs_raw[used_idx])}",
             width="stretch"
         )
     with col3:
-        st.image(
-            color_overlay,
-            caption=f"Segmentasi Warna: hijau/kuning/cokelat",
-            width="stretch"
-        )
+        # tampilkan peta prior gabungan untuk konteks
+        debug_prior = _normalize01(0.5*brown_prior + 0.5*wilt_prior)
+        st.image(_overlay_jet(image, debug_prior, alpha=0.45),
+                 caption="Peta Prior (cokelat & wilt)", width="stretch")
 
-    # Ringkasan metrik kekuningan & kelayuan
+    # Ringkasan metrik
     st.subheader("📊 Deteksi Kekuningan & Kelayuan")
     mcol1, mcol2, mcol3, mcol4 = st.columns(4)
-    with mcol1:
-        st.metric("Rasio Kuning", fmt_pct(color_stats["yellow_ratio"]))
-    with mcol2:
-        st.metric("Rasio Cokelat", fmt_pct(color_stats["brown_ratio"]))
-    with mcol3:
-        st.metric("Solidity (kompaksi)", f"{shape_stats['solidity']:.2f}")
-    with mcol4:
-        st.metric("Roughness (tepi)", f"{shape_stats['roughness']:.2f}")
+    with mcol1: st.metric("Rasio Kuning", f"{color_stats['yellow_ratio']*100:.2f}%")
+    with mcol2: st.metric("Rasio Cokelat", f"{color_stats['brown_ratio']*100:.2f}%")
+    with mcol3: st.metric("Solidity", f"{shape_stats['solidity']:.2f}")
+    with mcol4: st.metric("Roughness", f"{shape_stats['roughness']:.2f}")
 
     pcol1, pcol2 = st.columns(2)
     with pcol1:
@@ -318,13 +356,14 @@ if uploaded_file:
         "Prediksi": CLASS_NAMES[used_idx],
         "Probabilitas (display)": fmt_pct(probs_raw[used_idx]),
         "Layer": target_layer_name,
+        "CAM_Mode": cam_mode,
         "MaskBG": mask_bg,
         "BlendRes2": blend_with_res2,
         "ErodeBorder": erode_border,
         "LesionBoost": lesion_boost,
         "LesionWeight": lesion_weight,
-        "Rasio_Kuning": fmt_pct(color_stats["yellow_ratio"]),
-        "Rasio_Cokelat": fmt_pct(color_stats["brown_ratio"]),
+        "Rasio_Kuning": f"{color_stats['yellow_ratio']*100:.2f}%",
+        "Rasio_Cokelat": f"{color_stats['brown_ratio']*100:.2f}%",
         "Solidity": f"{shape_stats['solidity']:.2f}",
         "Roughness": f"{shape_stats['roughness']:.2f}",
         "Skor_Chlorosis": f"{chlorosis_score:.2f}",
@@ -340,8 +379,8 @@ if st.session_state["history"]:
     st.download_button("⬇️ Download CSV", csv, "histori_prediksi.csv", "text/csv")
 
 st.write("""
-Catatan: Ini alat bantuan berbasis AI. Hasil analisis kekuningan/kelayuan bersifat indikatif.
-Untuk diagnosis konklusif, konsultasikan dengan ahli patologi tanaman.
+Catatan: Mode CAM 'Brown/Wilt-aware' membimbing heatmap ke area cokelat/konkavitas tepi berdasarkan heuristik visual,
+bukan bukti patologi pasti. Gunakan bersama interpretasi ahli.
 """)
 
 st.markdown("---")
