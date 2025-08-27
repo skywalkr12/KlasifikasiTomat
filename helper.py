@@ -47,7 +47,7 @@ def ConvBlock(in_channels, out_channels, pool=False):
     layers = [
         nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
         nn.BatchNorm2d(out_channels),
-        nn.ReLU(inplace=False)
+        nn.ReLU(inplace=True)
     ]
     if pool:
         layers.append(nn.MaxPool2d(4))
@@ -381,6 +381,7 @@ def show_prediction_and_cam(
     )
 
     return overlay, cam, used_idx, probs_raw
+
 
 
 
