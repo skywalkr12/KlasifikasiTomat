@@ -1,8 +1,7 @@
 import streamlit as st
-# Hapus import yang tidak perlu lagi untuk styling
-# import base64
-# import html
-# from pathlib import Path
+import base64
+from pathlib import Path
+import html # <-- TAMBAHAN PENTING untuk membersihkan teks
 
 st.set_page_config(page_title="🩺 Informasi Penyakit Tanaman Tomat", layout="centered")
 
@@ -169,30 +168,80 @@ ordered_keys = [
 # =========================
 # HELPERS
 # =========================
-def render_numbered(title: str, items):
-    st.markdown(f"**{title}**")
-    if isinstance(items, (list, tuple)):
-        st.markdown("\n".join([f"{i}. {text}" for i, text in enumerate(items, start=1)]))
-    else:
-        st.markdown(items)
+def image_to_base64(image_path):
+    try:
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode()
+    except Exception:
+        return None
 
-def render_sources(srcs):
-    if not srcs:
-        return
-    st.markdown("**Sumber:**")
-    if isinstance(srcs, str):
-        st.markdown(f"- [{s}]({s})")
-    else:
-        for s in srcs:
-            st.markdown(f"- [{s}]({s})")
-
-# --- REVISI FINAL: Menggunakan metode Custom CSS yang aman untuk deployment ---
 def render_section(name: str, data: dict):
-    # Membuka div dengan class="disease-box"
-    st.markdown('<div class="disease-box">', unsafe_allow_html=True)
-
-    # Menampilkan semua konten menggunakan Streamlit standar
-    st.subheader(name)
+    # 1. Siapkan semua konten dan BERSIHKAN (escape) teksnya
+    severity = html.escape(data.get("severity", "—"))
+    clean_name = html.escape(name)
     
-    sev = data.get("severity", "")
-    if
+    img_path = data.get("image")
+    image_html = ""
+    if img_path:
+        # Asumsikan folder 'images' ada di direktori yang sama dengan skrip
+        full_image_path = Path("images") / img_path
+        base64_image = image_to_base64(full_image_path)
+        if base64_image:
+            image_html = f'<div style="text-align: center; margin-bottom: 20px;"><img src="data:image/jpeg;base64,{base64_image}" style="width: 300px; max-width: 100%; border-radius: 5px;"></div>'
+
+    desc_items = data.get("desc", [])
+    # PERBAIKAN: Gunakan html.escape() pada setiap item
+    desc_html = "<ol>" + "".join([f"<li>{html.escape(item)}</li>" for item in desc_items]) + "</ol>"
+
+    handling_items = data.get("handling", [])
+    # PERBAIKAN: Gunakan html.escape() pada setiap item
+    handling_html = "<ol>" + "".join([f"<li>{html.escape(item)}</li>" for item in handling_items]) + "</ol>"
+
+    # 2. Gabungkan semua menjadi satu string HTML besar
+    full_html = f"""
+    <div style="
+        background: linear-gradient(to right, #FFFFFF, #E0F2F1);
+        border: 1px solid #CCCCCC;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 25px;
+        color: #000000;
+        font-family: sans-serif;
+    ">
+        <h3>{clean_name}</h3>
+        <p style="font-size: 0.9em; color: #555; margin-top: -10px;">Tingkat keparahan (lokal): {severity}</p>
+        
+        {image_html}
+        
+        <b>Ciri-ciri/Gejala & Catatan:</b>
+        {desc_html}
+        
+        <b>Pencegahan & Penanganan:</b>
+        {handling_html}
+    </div>
+    """
+    st.markdown(full_html, unsafe_allow_html=True)
+
+# =========================
+# UI
+# =========================
+st.title("🩺 Informasi Penyakit Tanaman Tomat (Beserta Tingkat Keparahan)")
+st.markdown("---")
+
+for key in ordered_keys:
+    if key in diseases:
+        render_section(key, diseases[key])
+
+st.info( "Perlu diingat: Ini adalah alat diagnosis dengan bantuan Kecerdasan Buatan dan sebaiknya digunakan hanya sebagai panduan. Untuk diagnosis konklusif, konsultasikan dengan ahli patologi tanaman profesional."
+)
+st.markdown(
+    """
+<div style='text-align:center; font-size:14px;'>
+<b>© 2025 | Muhammad Sahrul Farhan | 51421076</b><br>
+🔗 <a href="https://www.linkedin.com/in/muhammad-sahrul-farhan/" target="_blank">LinkedIn</a> |
+<a href="https://www.instagram.com/eitcheien/" target="_blank">Instagram</a> |
+<a href="https://www.facebook.com/skywalkr12" target="_blank">Facebook</a>
+</div>
+""",
+    unsafe_allow_html=True,
+)
