@@ -187,7 +187,7 @@ st.title("🟡 Deteksi Kekuningan & Kelayuan + 🔍 Prediksi Penyakit Tomat")
 if "history" not in st.session_state:
     st.session_state["history"] = []
 
-DISPLAY_CAP = 0.9999
+DISPLAY_CAP = 0.9900
 def cap_for_display(p: float, cap: float = DISPLAY_CAP) -> float:
     return p if p < cap else cap
 def fmt_pct(p: float, cap: float = DISPLAY_CAP, decimals: int = 2) -> str:
@@ -324,3 +324,4 @@ st.markdown("""
 <a href="https://www.facebook.com/skywalkr12" target="blank_">Facebook</a>
 </div>
 """, unsafe_allow_html=True)
+
