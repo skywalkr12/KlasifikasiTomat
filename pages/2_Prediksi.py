@@ -315,13 +315,17 @@ Catatan: Analisis kekuningan/kelayuan memetakan gejala visual, bukan diagnosis f
 Kombinasikan dengan prediksi kelas dan pemeriksaan lapang.
 """)
 
-st.markdown("---")
-st.markdown("""
-<div style='text-align: center; font-size:14px;'>
-<b>© - 2025 | Muhammad Sahrul Farhan | 51421076</b><br>
-🔗 <a href="https://www.linkedin.com/in/muhammad-sahrul-farhan/" target="blank_">LinkedIn</a> |
-<a href="https://www.instagram.com/eitcheien/" target="blank_">Instagram</a> |
-<a href="https://www.facebook.com/skywalkr12" target="blank_">Facebook</a>
+st.info( "Perlu diingat: Ini adalah alat diagnosis dengan bantuan Kecerdasan Buatan dan sebaiknya digunakan hanya sebagai panduan. Untuk diagnosis konklusif, konsultasikan dengan ahli patologi tanaman profesional."
+)
+st.markdown(
+    """
+<div style='text-align:center; font-size:14px;'>
+<b>© 2025 | Muhammad Sahrul Farhan | 51421076</b><br>
+🔗 <a href="https://www.linkedin.com/in/muhammad-sahrul-farhan/" target="_blank">LinkedIn</a> |
+<a href="https://www.instagram.com/eitcheien/" target="_blank">Instagram</a> |
+<a href="https://www.facebook.com/skywalkr12" target="_blank">Facebook</a>
 </div>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
