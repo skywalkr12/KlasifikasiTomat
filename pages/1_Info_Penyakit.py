@@ -1,4 +1,6 @@
 import streamlit as st
+import base64
+from pathlib import Path
 
 st.set_page_config(page_title="🩺 Informasi Penyakit Tanaman Tomat", layout="centered")
 
@@ -165,63 +167,64 @@ ordered_keys = [
 # =========================
 # HELPERS
 # =========================
-def render_numbered(title: str, items):
-    st.markdown(f"**{title}**")
-    if isinstance(items, (list, tuple)):
-        st.markdown("\n".join([f"{i}. {text}" for i, text in enumerate(items, start=1)]))
-    else:
-        st.markdown(items)
 
-def render_sources(srcs):
-    if not srcs:
-        return
-    st.markdown("**Sumber:**")
-    if isinstance(srcs, str):
-        st.markdown(f"- [{s}]({s})")
-    else:
-        for s in srcs:
-            st.markdown(f"- [{s}]({s})")
+# --- HELPER BARU: Mengubah gambar menjadi format Base64 untuk HTML ---
+def image_to_base64(image_path):
+    """Mengubah file gambar menjadi string Base64."""
+    try:
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode()
+    except Exception:
+        return None
 
-# --- REVISI FINAL: Membungkus semua konten dalam satu DIV HTML kustom ---
+# --- REVISI FINAL: Membangun seluruh blok sebagai satu string HTML ---
 def render_section(name: str, data: dict):
-    # Membuka div dengan gaya background gradasi
-    st.markdown(
-        f"""
-        <div style="
-            background: linear-gradient(to right, #FFFFFF, #E0F2F1); /* Gradasi Putih ke Hijau Mint */
-            border: 1px solid #CCCCCC; /* Menambah border abu-abu tipis */
-            border-radius: 10px;
-            padding: 20px;
-            margin-bottom: 25px;
-            color: #000000; /* Memastikan semua teks di dalam berwarna hitam */
-        ">
-        """,
-        unsafe_allow_html=True
-    )
+    # 1. Siapkan semua konten sebagai variabel Python terlebih dahulu
+    severity = data.get("severity", "—")
     
-    # Menampilkan semua konten menggunakan Streamlit di dalam "div"
-    st.subheader(name)
-    
-    sev = data.get("severity", "")
-    if sev:
-        st.caption(f"Tingkat keparahan (lokal): {sev}")
-    
+    # Buat HTML untuk gambar (dengan Base64)
     img_path = data.get("image")
+    image_html = ""
     if img_path:
-        try:
-            # Menampilkan gambar di tengah
-            col1, col2, col3 = st.columns([1,2,1])
-            with col2:
-                st.image(f"images/{img_path}", width=300)
-        except Exception:
-            pass
-    
-    render_numbered("Ciri-ciri/Gejala & Catatan:", data.get("desc", "-"))
-    render_numbered("Pencegahan & Penanganan:", data.get("handling", "-"))
-    render_sources(data.get("sources", []))
+        base64_image = image_to_base64(Path("images") / img_path)
+        if base64_image:
+            image_html = f'<div style="text-align: center; margin-bottom: 20px;"><img src="data:image/jpeg;base64,{base64_image}" style="width: 300px; border-radius: 5px;"></div>'
 
-    # Menutup div
-    st.markdown("</div>", unsafe_allow_html=True)
+    # Buat HTML untuk daftar deskripsi
+    desc_items = data.get("desc", [])
+    desc_html = "<ol>" + "".join([f"<li>{item}</li>" for item in desc_items]) + "</ol>"
+
+    # Buat HTML untuk daftar penanganan
+    handling_items = data.get("handling", [])
+    handling_html = "<ol>" + "".join([f"<li>{item}</li>" for item in handling_items]) + "</ol>"
+
+    # 2. Gabungkan semua menjadi satu string HTML besar
+    full_html = f"""
+    <div style="
+        background: linear-gradient(to right, #FFFFFF, #E0F2F1);
+        border: 1px solid #CCCCCC;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 25px;
+        color: #000000;
+        font-family: sans-serif;
+    ">
+        <h3>{name}</h3>
+        <p style="font-size: 0.9em; color: #555; margin-top: -10px;">Tingkat keparahan (lokal): {severity}</p>
+        
+        {image_html}
+        
+        <b>Ciri-ciri/Gejala & Catatan:</b>
+        {desc_html}
+        
+        <b>Pencegahan & Penanganan:</b>
+        {handling_html}
+    </div>
+    """
+
+    # 3. Render semuanya dengan satu panggilan st.markdown
+    st.markdown(full_html, unsafe_allow_html=True)
+
 
 # =========================
 # UI
@@ -232,8 +235,6 @@ st.markdown("---")
 for key in ordered_keys:
     if key in diseases:
         render_section(key, diseases[key])
-        # Spasi antar seksi sudah diatur oleh margin-bottom di CSS, jadi <br> tidak perlu
-        # st.markdown("<br>", unsafe_allow_html=True) 
 
 st.info( "Perlu diingat: Ini adalah alat diagnosis dengan bantuan Kecerdasan Buatan dan sebaiknya digunakan hanya sebagai panduan. Untuk diagnosis konklusif, konsultasikan dengan ahli patologi tanaman profesional."
 )
