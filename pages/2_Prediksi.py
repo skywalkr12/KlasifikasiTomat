@@ -265,11 +265,6 @@ if uploaded_file:
     with pcol2:
         st.markdown(f"**Skor Kelayuan (0–1):** `{wilt_score:.2f}`")
         st.progress(min(max(wilt_score,0.0),1.0))
-        
-st.write("""
-Analisis kekuningan/kelayuan hanya membantu memetakan gejala visual, bukan diagnosis final.
-Kombinasikan dengan prediksi kelas dan pemeriksaan lapang.
-""")
     
     # Alternatif (Top-k)
     topk_ = min(topk, len(CLASS_NAMES))
@@ -328,6 +323,7 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
 
 
 
