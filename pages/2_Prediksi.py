@@ -182,7 +182,7 @@ def _make_color_overlay(pil_img, masks, alpha=0.45):
 
 # ========== Streamlit UI ==========
 st.set_page_config(page_title="Prediksi Penyakit Tomat + Deteksi Kekuningan/Kelayuan", layout="wide")
-st.title("🌿 Deteksi Kekuningan & Kelayuan + 🔍 Prediksi Penyakit Tomat")
+st.title("🟡 Deteksi Kekuningan & Kelayuan + 🔍 Prediksi Penyakit Tomat")
 
 if "history" not in st.session_state:
     st.session_state["history"] = []
@@ -194,20 +194,19 @@ def fmt_pct(p: float, cap: float = DISPLAY_CAP, decimals: int = 2) -> str:
     q = cap_for_display(float(p), cap)
     return f"{q*100:.{decimals}f}%"
 
-# --- FUNGSI BARU UNTUK METRIK BERWARNA (LEBIH ANDAL) ---
+# --- REVISI FUNGSI: METRIK DENGAN BORDER BERWARNA ---
 def colored_metric(label, value, color):
     st.markdown(
         f"""
         <div style="
-            display: flex;
-            flex-direction: column;
-            border: 1px solid rgba(49, 51, 63, 0.2);
+            border: 2px solid {color};
             border-radius: 0.5rem;
             padding: 1rem;
             background-color: #FFFFFF;
-            overflow-wrap: break-word;">
+            overflow-wrap: break-word;
+            text-align: center;">
             <div style="font-size: 0.875rem; color: rgba(49, 51, 63, 0.6); margin-bottom: 0.25rem;">{label}</div>
-            <div style="font-size: 1.5rem; color: {color}; font-weight: normal;">{value}</div>
+            <div style="font-size: 1.5rem; color: #000000; font-weight: normal;">{value}</div>
         </div>
         """,
         unsafe_allow_html=True
@@ -279,20 +278,16 @@ if uploaded_file:
         
         st.markdown(" ")
 
-        with st.container(border=True):
-            mcol1, mcol2, mcol3, mcol4 = st.columns(4)
-            with mcol1:
-                # REVISI: Menggunakan fungsi colored_metric
-                colored_metric("Rasio Kuning", fmt_pct(color_stats["yellow_ratio"]), "#D1B000")
-            with mcol2:
-                # REVISI: Menggunakan fungsi colored_metric
-                colored_metric("Rasio Cokelat", fmt_pct(color_stats["brown_ratio"]), "#A0522D")
-            with mcol3:
-                # REVISI: Menggunakan fungsi colored_metric
-                colored_metric("Solidity (kompaksi)", f"{shape_stats['solidity']:.2f}", "#404040")
-            with mcol4:
-                # REVISI: Menggunakan fungsi colored_metric
-                colored_metric("Roughness (tepi)", f"{shape_stats['roughness']:.2f}", "#3CB371")
+        # --- REVISI: Menghapus container luar untuk metrik ---
+        mcol1, mcol2, mcol3, mcol4 = st.columns(4)
+        with mcol1:
+            colored_metric("Rasio Kuning", fmt_pct(color_stats["yellow_ratio"]), "#D1B000")
+        with mcol2:
+            colored_metric("Rasio Cokelat", fmt_pct(color_stats["brown_ratio"]), "#A0522D")
+        with mcol3:
+            colored_metric("Solidity (kompaksi)", f"{shape_stats['solidity']:.2f}", "#404040")
+        with mcol4:
+            colored_metric("Roughness (tepi)", f"{shape_stats['roughness']:.2f}", "#3CB371")
         
         st.markdown(" ")
 
