@@ -81,16 +81,16 @@ class ResNet9(ImageClassificationBase):
 
 # ========= Daftar kelas =========
 CLASS_NAMES = [
- 'Tomato_Bacterial_spot',
- 'Tomato_Early_blight',
- 'Tomato_Late_blight',
- 'Tomato_Leaf_Mold',
- 'Tomato_Septoria_leaf_spot',
- 'Tomato_Spider_mites_Two_spotted_spider_mite',
- 'Tomato_Target_Spot',
+ 'Bacterial_spot',
+ 'Early_blight',
+ 'Late_blight',
+ 'Leaf_Mold',
+ 'Septoria_leaf_spot',
+ 'Spider_mites_Two_spotted_spider_mite',
+ 'Target_Spot',
  'Tomato_Tomato_YellowLeaf__Curl_Virus',
  'Tomato_Tomato_mosaic_virus',
- 'Tomato_healthy'
+ 'healthy'
 ]
 
 # ========= Transform (samakan dengan training!) =========
@@ -379,6 +379,7 @@ def show_prediction_and_cam(
     )
 
     return overlay, cam, used_idx, probs_raw
+
 
 
 
