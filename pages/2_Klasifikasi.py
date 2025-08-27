@@ -217,7 +217,7 @@ with st.sidebar:
     st.header("💡 Panduan Penggunaan")
     st.markdown("""
     - **Unggah Gambar:** Siapkan foto daun tomat Anda (format JPG, JPEG, PNG).
-    - **Lihat Hasil:** Model akan otomatis menganalisis dan menampilkan potensi penyakit setelah gambar diunggah.
+    - **Lihat Hasil:** Model akan otomatis menganalisis dan mengklasifikasi potensi penyakit setelah gambar diunggah.
     """)
     st.info("Pastikan gambar hanya menampilkan satu daun tomat dalam kondisi pencahayaan yang baik untuk hasil terbaik.", icon="⚠️")
     st.markdown("---")
@@ -353,6 +353,7 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
 
 
 
