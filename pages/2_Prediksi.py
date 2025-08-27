@@ -194,6 +194,37 @@ def fmt_pct(p: float, cap: float = DISPLAY_CAP, decimals: int = 2) -> str:
     q = cap_for_display(float(p), cap)
     return f"{q*100:.{decimals}f}%"
 
+# ----- CUSTOM CSS for colored metrics -----
+st.markdown("""
+<style>
+    /* Umum untuk nilai metric */
+    .st-emotion-cache-1f06a9k.ef3psqc12 > div[data-testid="stMetricValue"] {
+        font-weight: normal !important; /* Memastikan tidak bold */
+    }
+
+    /* Rasio Kuning */
+    div[data-testid="stMetricLabel"]:has(div[title="Rasio Kuning"]) + div > div[data-testid="stMetricValue"] {
+        color: #FFD700; /* Kuning emas */
+    }
+
+    /* Rasio Cokelat */
+    div[data-testid="stMetricLabel"]:has(div[title="Rasio Cokelat"]) + div > div[data-testid="stMetricValue"] {
+        color: #A0522D; /* Sienn (Cokelat) */
+    }
+
+    /* Solidity (kompaksi) */
+    div[data-testid="stMetricLabel"]:has(div[title="Solidity (kompaksi)"]) + div > div[data-testid="stMetricValue"] {
+        color: #404040; /* Abu-abu gelap/kehitaman */
+    }
+
+    /* Roughness (tepi) */
+    div[data-testid="stMetricLabel"]:has(div[title="Roughness (tepi)"]) + div > div[data-testid="stMetricValue"] {
+        color: #3CB371; /* Medium Sea Green (Hijau) */
+    }
+</style>
+""", unsafe_allow_html=True)
+
+
 # ----- Sidebar -----
 with st.sidebar:
     st.header("💡 Panduan Penggunaan")
@@ -253,15 +284,13 @@ if uploaded_file:
     with st.container(border=True):
         st.subheader("📊 Deteksi Kekuningan & Kelayuan")
         
-        # --- MODIFIKASI: Container baru untuk teks analisis ---
         with st.container(border=True):
             st.write("""
             **Analisis Gejala Visual:** Informasi di bawah ini memetakan gejala visual seperti kekuningan (klorosis) dan kelayuan daun, **ini bukan diagnosis final**. Diperlukan pemeriksaan lapang lebih lanjut untuk konfirmasi.
             """)
         
-        st.markdown(" ") # Memberi sedikit spasi
+        st.markdown(" ")
 
-        # --- MODIFIKASI: Container baru untuk hasil metrik/rasio ---
         with st.container(border=True):
             mcol1, mcol2, mcol3, mcol4 = st.columns(4)
             with mcol1:
@@ -273,7 +302,7 @@ if uploaded_file:
             with mcol4:
                 st.metric("Roughness (tepi)", f"{shape_stats['roughness']:.2f}")
 
-        st.markdown(" ") # Memberi sedikit spasi
+        st.markdown(" ")
 
         pcol1, pcol2 = st.columns(2)
         with pcol1:
