@@ -340,9 +340,11 @@ if st.session_state["history"]:
     csv = df.to_csv(index=False).encode("utf-8")
     st.download_button("⬇️ Download CSV", csv, "histori_prediksi.csv", "text/csv")
 
+st.markdown("---")
+
 st.info( "Perlu diingat: Ini adalah alat diagnosis dengan bantuan Kecerdasan Buatan dan sebaiknya digunakan hanya sebagai panduan. Untuk diagnosis konklusif, konsultasikan dengan ahli patologi tanaman profesional."
 )
-st.markdown("---")
+
 st.markdown(
     """
 <div style='text-align:center; font-size:14px;'>
@@ -354,6 +356,7 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
 
 
 
