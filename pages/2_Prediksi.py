@@ -250,7 +250,7 @@ if uploaded_file:
     st.subheader("📊 Deteksi Kekuningan & Kelayuan")
     st.write("""
 Analisis kekuningan/kelayuan hanya membantu memetakan gejala visual, bukan diagnosis final.
-Kombinasikan dengan prediksi kelas dan pemeriksaan lapang.
+Diperlukan pemeriksaan lapang lebih lanjut.
 """)
     mcol1, mcol2, mcol3, mcol4 = st.columns(4)
     with mcol1:
@@ -327,6 +327,7 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
 
 
 
