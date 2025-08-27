@@ -1,6 +1,7 @@
 import streamlit as st
 import base64
 from pathlib import Path
+import html # <-- TAMBAHAN PENTING untuk membersihkan teks
 
 st.set_page_config(page_title="🩺 Informasi Penyakit Tanaman Tomat", layout="centered")
 
@@ -167,36 +168,34 @@ ordered_keys = [
 # =========================
 # HELPERS
 # =========================
-
-# --- HELPER BARU: Mengubah gambar menjadi format Base64 untuk HTML ---
 def image_to_base64(image_path):
-    """Mengubah file gambar menjadi string Base64."""
     try:
         with open(image_path, "rb") as img_file:
             return base64.b64encode(img_file.read()).decode()
     except Exception:
         return None
 
-# --- REVISI FINAL: Membangun seluruh blok sebagai satu string HTML ---
 def render_section(name: str, data: dict):
-    # 1. Siapkan semua konten sebagai variabel Python terlebih dahulu
-    severity = data.get("severity", "—")
+    # 1. Siapkan semua konten dan BERSIHKAN (escape) teksnya
+    severity = html.escape(data.get("severity", "—"))
+    clean_name = html.escape(name)
     
-    # Buat HTML untuk gambar (dengan Base64)
     img_path = data.get("image")
     image_html = ""
     if img_path:
-        base64_image = image_to_base64(Path("images") / img_path)
+        # Asumsikan folder 'images' ada di direktori yang sama dengan skrip
+        full_image_path = Path("images") / img_path
+        base64_image = image_to_base64(full_image_path)
         if base64_image:
-            image_html = f'<div style="text-align: center; margin-bottom: 20px;"><img src="data:image/jpeg;base64,{base64_image}" style="width: 300px; border-radius: 5px;"></div>'
+            image_html = f'<div style="text-align: center; margin-bottom: 20px;"><img src="data:image/jpeg;base64,{base64_image}" style="width: 300px; max-width: 100%; border-radius: 5px;"></div>'
 
-    # Buat HTML untuk daftar deskripsi
     desc_items = data.get("desc", [])
-    desc_html = "<ol>" + "".join([f"<li>{item}</li>" for item in desc_items]) + "</ol>"
+    # PERBAIKAN: Gunakan html.escape() pada setiap item
+    desc_html = "<ol>" + "".join([f"<li>{html.escape(item)}</li>" for item in desc_items]) + "</ol>"
 
-    # Buat HTML untuk daftar penanganan
     handling_items = data.get("handling", [])
-    handling_html = "<ol>" + "".join([f"<li>{item}</li>" for item in handling_items]) + "</ol>"
+    # PERBAIKAN: Gunakan html.escape() pada setiap item
+    handling_html = "<ol>" + "".join([f"<li>{html.escape(item)}</li>" for item in handling_items]) + "</ol>"
 
     # 2. Gabungkan semua menjadi satu string HTML besar
     full_html = f"""
@@ -209,7 +208,7 @@ def render_section(name: str, data: dict):
         color: #000000;
         font-family: sans-serif;
     ">
-        <h3>{name}</h3>
+        <h3>{clean_name}</h3>
         <p style="font-size: 0.9em; color: #555; margin-top: -10px;">Tingkat keparahan (lokal): {severity}</p>
         
         {image_html}
@@ -221,10 +220,7 @@ def render_section(name: str, data: dict):
         {handling_html}
     </div>
     """
-
-    # 3. Render semuanya dengan satu panggilan st.markdown
     st.markdown(full_html, unsafe_allow_html=True)
-
 
 # =========================
 # UI
