@@ -308,23 +308,22 @@ if uploaded_file:
         for i in order
     ]))
 
-if show_full_chart:
-    st.subheader("📊 Probabilitas per Kelas (A→Z)")
+    if show_full_chart:
+        st.subheader("📊 Probabilitas per Kelas (A→Z)")
+        probs_plot = np.minimum(np.array(probs_raw, dtype=float), DISPLAY_CAP)
 
-    probs_plot = np.minimum(np.array(probs_raw, dtype=float), DISPLAY_CAP)
+        # Urutan alfabet (case-insensitive) berdasarkan CLASS_NAMES
+        az_order = np.argsort(np.char.lower(np.array(CLASS_NAMES, dtype="U")))
+        labels_az = [CLASS_NAMES[i] for i in az_order]
+        values_az = probs_plot[az_order]
 
-    # Urutan alfabet (case-insensitive) berdasarkan CLASS_NAMES
-    az_order = np.argsort(np.char.lower(np.array(CLASS_NAMES, dtype="U")))
-    labels_az = [CLASS_NAMES[i] for i in az_order]
-    values_az = probs_plot[az_order]
-
-    fig, ax = plt.subplots()
-    ax.barh(labels_az, values_az, height=0.6)
-    ax.set_xlim(0, 1)
-    ax.set_xlabel("Probabilitas")
-    ax.set_ylabel("Kelas")
-    ax.invert_yaxis()  # supaya 'A' tampil di paling atas
-    st.pyplot(fig)
+        fig, ax = plt.subplots()
+        ax.barh(labels_az, values_az, height=0.6)
+        ax.set_xlim(0, 1)
+        ax.set_xlabel("Probabilitas")
+        ax.set_ylabel("Kelas")
+        ax.invert_yaxis()  # supaya 'A' tampil di paling atas
+        st.pyplot(fig)
 
     st.session_state["history"].append({
         "Tanggal": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -362,11 +361,6 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
-
-
-
-
-
 
 
 
