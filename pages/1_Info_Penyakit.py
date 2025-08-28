@@ -216,6 +216,8 @@ def render_numbered(title: str, items):
         # fallback untuk string
         st.markdown(items)
 
+def render_paragraph(title: str, items, join_mode: str = "space"):
+
 def render_sources(srcs):
     if not srcs:
         return
@@ -237,7 +239,7 @@ def render_section(name: str, data: dict):
             st.image(f"images/{img_path}", width=260)
         except Exception:
             pass
-    render_text("Informasi Singkat:", data.get("info"))
+    render_paragraph("Informasi Singkat:", data.get("info"))
     render_numbered("Ciri-ciri/Gejala & Catatan:", data.get("desc", "-"))
     render_numbered("Pencegahan & Penanganan:", data.get("handling", "-"))
     render_sources(data.get("sources", []))
@@ -265,6 +267,7 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
 
 
 
