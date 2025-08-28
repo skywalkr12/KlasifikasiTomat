@@ -37,7 +37,7 @@ diseases = {
         ],
         "severity": "—",
         "image": "Healthy.jpg",
-        "sources": "[1]https://www.vegetables.cornell.edu/pest-management/disease-factsheets/managing-tomato-diseases-successfully",
+        "sources": "https://www.vegetables.cornell.edu/pest-management/disease-factsheets/managing-tomato-diseases-successfully",
     },
 
     # ---------- 1) Spider mites — RENDAH → SEDANG ----------
@@ -55,7 +55,7 @@ diseases = {
         ],
         "severity": "Rendah → Sedang",
         "image": "Spider Mites.jpg",
-        "sources": "[1]https://extension.umn.edu/yard-and-garden-insects/spider-mites, [2]https://extension.oregonstate.edu/catalog/how-recognize-manage-spider-mites-home-garden, [3]https://extension.umn.edu/yard-and-garden-insects/spider-mites",
+        "sources": "https://extension.umn.edu/yard-and-garden-insects/spider-mites, https://extension.oregonstate.edu/catalog/how-recognize-manage-spider-mites-home-garden, https://extension.umn.edu/yard-and-garden-insects/spider-mites",
     },
 
     # ---------- 2) Leaf mold — RENDAH → SEDANG ----------
@@ -73,7 +73,7 @@ diseases = {
         ],
         "severity": "Rendah → Sedang",
         "image": "Leaf Mold.jpg",
-        "sources": "[1]https://ipm.ucanr.edu/home-and-landscape/spider-mites, [2]https://pnwhandbooks.org/insect/vegetable/vegetable-pests/hosts-pests/tomato-spider-mite",
+        "sources": ", ,
     },
 
     # ---------- 3) Septoria leaf spot — SEDANG ----------
@@ -316,6 +316,7 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
 
 
 
