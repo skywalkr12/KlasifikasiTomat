@@ -95,18 +95,15 @@ def tomato_gate(pil_image,
 
 # ========== Analisis Kekuningan & Kelayuan ==========
 def _color_masks_hsv(img_rgb, leaf_mask01):
-    """Segmentasi dalam ruang HSV cv2 (H∈[0,179], S,V∈[0,255])."""
     hsv = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2HSV)
     H, S, V = hsv[...,0], hsv[...,1], hsv[...,2]
 
-    # Rentang empiris yang “aman” untuk daun tomat
     green  = ((H>=35) & (H<=85)  & (S>=28) & (V>=40)).astype(np.uint8)
     yellow = ((H>=20) & (H<=35)  & (S>=60) & (V>=60)).astype(np.uint8)  # chlorosis
     brown1 = ((H>=5)  & (H<=20)  & (S>=50) & (V>=25) & (V<=210)).astype(np.uint8)
     brown2 = ((H<5)               & (S>=60) & (V>=15) & (V<=180)).astype(np.uint8)
     brown  = (brown1 | brown2).astype(np.uint8)
 
-    # Batasi ke area daun
     green  = green  & leaf_mask01
     yellow = yellow & leaf_mask01
     brown  = brown  & leaf_mask01
@@ -122,11 +119,9 @@ def _color_masks_hsv(img_rgb, leaf_mask01):
     return {"green":green, "yellow":yellow, "brown":brown, "total":total}, stats
 
 def _shape_metrics_for_wilt(leaf_mask01):
-    """Ekstrak metrik bentuk untuk indikasi kelayuan (solidity & roughness)."""
     num, labels = cv2.connectedComponents(leaf_mask01)
     if num <= 1:
         return {"solidity": 0.0, "roughness": 0.0}
-    # ambil komponen terbesar
     best, area = 0, 0
     for lb in range(1, num):
         a = int((labels == lb).sum())
@@ -143,28 +138,18 @@ def _shape_metrics_for_wilt(leaf_mask01):
     perim = cv2.arcLength(cnt, closed=True)
 
     solidity = float(area_cnt / area_hull)
-    # Shape factor: 1 untuk lingkaran; makin besar → tepi makin “kasar / berlekuk”
-    shape_factor = float((perim**2) / (4.0 * np.pi * area_cnt))
-    # Normalisasi empiris → 0..1 (≈1 “kasar sekali”)
+    shape_factor = float((perim**2) / (4.0 * np.pi * area_cnt))  # 1 untuk lingkaran
     roughness = float(np.clip((shape_factor - 1.0) / 1.2, 0.0, 1.0))
     return {"solidity": solidity, "roughness": roughness}
 
 def _wilt_and_chlorosis_scores(color_stats, shape_stats):
-    """
-    Skor 0..1 (semakin besar semakin parah). Heuristik terkontrol:
-    - Chlorosis: bergantung pada rasio kuning dan penurunan hijau.
-    - Wilt: bergantung pada (1 - solidity) dan roughness tepi.
-    """
-    y = color_stats["yellow_ratio"]
-    g = color_stats["green_ratio"]
-    chl = np.clip(0.7*(y/0.25) + 0.3*((1.0-g)/0.5), 0.0, 1.0)  # ~25% kuning → 0.7
+    y = color_stats["yellow_ratio"]; g = color_stats["green_ratio"]
+    chl = np.clip(0.7*(y/0.25) + 0.3*((1.0-g)/0.5), 0.0, 1.0)
     wilt = np.clip(0.6*((1.0 - shape_stats["solidity"])/0.75) + 0.4*(shape_stats["roughness"]), 0.0, 1.0)
     return float(chl), float(wilt)
 
 def _make_color_overlay(pil_img, masks, alpha=0.45):
-    """Overlay warna: green→(0,255,0), yellow→(255,255,0), brown→(255,80,0)."""
     base = np.asarray(pil_img.convert("RGB")).astype(np.float32)
-    H, W, _ = base.shape
     overlay = base.copy()
     color_map = {
         "yellow": np.array([255, 255,   0], dtype=np.float32),
@@ -180,8 +165,8 @@ def _make_color_overlay(pil_img, masks, alpha=0.45):
     return Image.fromarray(overlay)
 
 # ========== Streamlit UI ==========
-st.set_page_config(page_title="🌿 Klasifikasi Penyakit Tanaman Tomat + Segmentasi Warna", layout="wide")
-st.title("🌿 Klasifikasi Penyakit Tanaman Tomat + Segmentasi Warna")
+st.set_page_config(page_title="🌿 Klasifikasi Penyakit Tomat + Segmentasi Warna", layout="wide")
+st.title("🌿 Klasifikasi Penyakit Tomat + Segmentasi Warna")
 
 if "history" not in st.session_state:
     st.session_state["history"] = []
@@ -193,7 +178,6 @@ def fmt_pct(p: float, cap: float = DISPLAY_CAP, decimals: int = 2) -> str:
     q = cap_for_display(float(p), cap)
     return f"{q*100:.{decimals}f}%"
 
-# --- Metric card sederhana ---
 def colored_metric(label, value, bg_color, text_color="#FFFFFF"):
     st.markdown(
         f"""
@@ -211,28 +195,18 @@ def colored_metric(label, value, bg_color, text_color="#FFFFFF"):
         unsafe_allow_html=True
     )
 
-# ----- Sidebar -----
+# ----- Sidebar (tanpa slider/field untuk path model) -----
 with st.sidebar:
-    st.header("💡 Panduan Penggunaan")
-    st.markdown("""
-    - Unggah foto daun tomat (JPG/PNG) yang jelas.
-    - Aplikasi akan mengklasifikasikan penyakit & menyorot warna (kuning/cokelat/hijau).
-    """)
+    st.header("Panduan Singkat")
+    st.markdown("- Unggah foto daun tomat (JPG/PNG) yang jelas.")
     st.info("Sebaiknya satu daun, pencahayaan baik.", icon="⚠️")
     st.markdown("---")
-
-    # Path model dapat diubah di sini
-    model_path = st.text_input(
-        "Path file model .pt",
-        value="/mnt/data/resnet9_finetuned.pt",
-        help="Ubah jika file .pt kamu ada di lokasi lain."
-    )
-
+    # Komponen yang sudah memang ada sebelumnya boleh tetap:
     topk  = st.slider("Jumlah alternatif (Top-k)", 1, min(5, len(CLASS_NAMES)), 3, 1)
     show_full_chart = st.checkbox("Tampilkan chart probabilitas lengkap (A→Z)", True)
 
-# ----- Model -----
-model = load_model(model_path)
+# ----- Model (path tetap) -----
+model = load_model()  # akan selalu mengambil 'model/resnet9_finetuned.pt'
 
 # ----- Uploader -----
 uploaded_file = st.file_uploader("Upload gambar daun tomat", type=["jpg", "jpeg", "png"])
@@ -246,7 +220,7 @@ if uploaded_file:
         st.stop()
     leaf_mask01 = info_gate["mask"].astype(np.uint8)
 
-    # Prediksi (sudah temperature scaling di helper.predict_image)
+    # Prediksi (temperature scaling dilakukan di helper.predict_image)
     pred_name, probs, logits = predict_image(model, image)
     used_idx = int(np.argmax(probs))
 
@@ -298,7 +272,7 @@ if uploaded_file:
             st.progress(min(max(wilt_score,0.0),1.0))
 
     st.markdown(" ")
-    # Alternatif Top-k (berdasar nilai, bukan A→Z)
+    # Alternatif Top-k (berdasarkan nilai; ini memang dinamis)
     topk_ = min(topk, len(CLASS_NAMES))
     order_val = np.argsort(-probs)[:topk_]
     st.markdown("**Alternatif (Top-k)**")
@@ -342,7 +316,10 @@ if st.session_state["history"]:
     st.download_button("⬇️ Download CSV", csv, "histori_prediksi.csv", "text/csv")
 
 st.markdown("---")
-st.info("Pengingat: Ini alat bantu berbasis AI. Untuk diagnosis pasti, konsultasikan dengan ahli patologi tanaman.")
+
+st.info( "Perlu diingat: Ini adalah alat diagnosis dengan bantuan Kecerdasan Buatan dan sebaiknya digunakan hanya sebagai panduan. Untuk diagnosis konklusif, konsultasikan dengan ahli patologi tanaman profesional."
+)
+
 st.markdown(
     """
 <div style='text-align:center; font-size:14px;'>
