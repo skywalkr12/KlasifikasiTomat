@@ -58,8 +58,7 @@ diseases = {
         "image": "Spider Mites.jpg",
         "sources": [
             "https://extension.umn.edu/yard-and-garden-insects/spider-mites",
-            "https://extension.oregonstate.edu/catalog/how-recognize-manage-spider-mites-home-garden", 
-            "https://extension.umn.edu/yard-and-garden-insects/spider-mites"
+            "https://extension.oregonstate.edu/catalog/how-recognize-manage-spider-mites-home-garden" 
         ]
     },
 
@@ -87,7 +86,7 @@ diseases = {
     # ---------- 3) Septoria leaf spot — SEDANG ----------
     "Septoria Leaf Spot": {
         "info": [
-            " "
+            "Disebabkan oleh jamur Septoria lycopersici; konidia menyebar melalui percikan air/angin pendek, bertahan pada sisa tanaman dan dapat terbawa benih. "
         ],
         "desc": [
             "Bercak kecil banyak (±1–3 mm) berpusat pucat dengan titik hitam (pycnidia), terutama di daun bawah.",
@@ -99,6 +98,11 @@ diseases = {
         ],
         "severity": "Sedang",
         "image": "Septoria Leaf Spot.jpg",
+        "sources": [
+            "https://extension.wvu.edu/lawn-gardening-pests/plant-disease/fruit-vegetable-diseases/septoria-leaf-spot", 
+            "https://extension.umaine.edu/ipm/ipddl/publications/5088e",
+            "https://content.ces.ncsu.edu/septoria-leaf-spot-of-tomato"
+        ]
     },
 
     # ---------- 4) Target spot — TINGGI ----------
@@ -324,6 +328,7 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
 
 
 
