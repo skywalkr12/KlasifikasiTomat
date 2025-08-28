@@ -217,6 +217,26 @@ def render_numbered(title: str, items):
         st.markdown(items)
 
 def render_paragraph(title: str, items, join_mode: str = "space"):
+    """
+    Render konten sebagai paragraf (tanpa numbering/bullet).
+    - items string -> ditampilkan apa adanya (strip)
+    - items list/tuple -> digabung jadi 1 paragraf ("space") atau multi-paragraf ("double_newline")
+    """
+    # Normalisasi & rakit body terlebih dahulu agar tidak render judul kosong
+    if items is None:
+        return
+    if isinstance(items, (list, tuple)):
+        rows = [str(x).strip() for x in items if x is not None and str(x).strip()]
+        if not rows:
+            return
+        body = " ".join(rows) if join_mode == "space" else "\n\n".join(rows)
+    else:
+        body = str(items).strip()
+        if not body:
+            return
+
+    st.markdown(f"**{title}**")
+    st.markdown(body)
 
 def render_sources(srcs):
     if not srcs:
@@ -267,6 +287,7 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
 
 
 
