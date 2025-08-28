@@ -205,7 +205,7 @@ diseases = {
         "image": "Tomato Yellow Leaf Curl Virus (TYLCV).jpg",
         "sources": [
             "https://ipm.ucanr.edu/agriculture/tomato/tomato-yellow-leaf-curl",
-            "https://content.ces.ncsu.edu/tomato-yellow-leaf-curl-virus"
+            "https://content.ces.ncsu.edu/tomato-yellow-leaf-curl-virus",
             "https://ipm.ucanr.edu/PMG/PESTNOTES/pn7401.html"
         ]
     },
@@ -353,6 +353,7 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
 
 
 
