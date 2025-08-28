@@ -79,7 +79,9 @@ diseases = {
         ],
         "severity": "Rendah → Sedang",
         "image": "Leaf Mold.jpg",
-        "sources": ", ,
+        "source": [
+
+        ]
     },
 
     # ---------- 3) Septoria leaf spot — SEDANG ----------
@@ -322,6 +324,7 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
 
 
 
