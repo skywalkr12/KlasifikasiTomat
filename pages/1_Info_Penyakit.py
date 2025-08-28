@@ -56,7 +56,11 @@ diseases = {
         ],
         "severity": "Rendah → Sedang",
         "image": "Spider Mites.jpg",
-        "sources": "[1] https://extension.umn.edu/yard-and-garden-insects/spider-mites, [2] https://extension.oregonstate.edu/catalog/how-recognize-manage-spider-mites-home-garden, [3] https://extension.umn.edu/yard-and-garden-insects/spider-mites"
+        "sources": [
+            "https://extension.umn.edu/yard-and-garden-insects/spider-mites",
+            "https://extension.oregonstate.edu/catalog/how-recognize-manage-spider-mites-home-garden", 
+            "https://extension.umn.edu/yard-and-garden-insects/spider-mites"
+        ]
     },
 
     # ---------- 2) Leaf mold — RENDAH → SEDANG ----------
@@ -74,7 +78,10 @@ diseases = {
         ],
         "severity": "Rendah → Sedang",
         "image": "Leaf Mold.jpg",
-        "sources": "[1] https://www.canr.msu.edu/news/tomato-leaf-mold-in-hoophouse-tomatoes, [2] https://extension.umn.edu/disease-management/tomato-leaf-mold?utm_source=chatgpt.com"
+        "sources": [
+            "https://www.canr.msu.edu/news/tomato-leaf-mold-in-hoophouse-tomatoes", 
+            "https://extension.umn.edu/disease-management/tomato-leaf-mold"
+        ]
     },
 
     # ---------- 3) Septoria leaf spot — SEDANG ----------
@@ -317,6 +324,7 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
 
 
 
