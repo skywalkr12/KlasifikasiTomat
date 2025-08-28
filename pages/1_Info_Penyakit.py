@@ -57,8 +57,8 @@ diseases = {
         "severity": "Rendah → Sedang",
         "image": "Spider Mites.jpg",
         "sources": [
-            "https://extension.umn.edu/yard-and-garden-insects/spider-mites",
-            "https://extension.oregonstate.edu/catalog/how-recognize-manage-spider-mites-home-garden" 
+            "https://extension.oregonstate.edu/catalog/how-recognize-manage-spider-mites-home-garden",
+            "https://extension.umn.edu/yard-and-garden-insects/spider-mites"
         ]
     },
 
@@ -108,7 +108,7 @@ diseases = {
     # ---------- 4) Target spot — TINGGI ----------
     "Target Spot": {
         "info": [
-            " "
+            "Disebabkan oleh jamur Corynespora cassiicola; lembap–hangat dan kanopi rapat memicu defoliasi bagian dalam (“melting out”)."
         ],
         "desc": [
             "Lesi bertarget (cincin konsentris) dengan pusat keabu-abuan; defoliasi di kanopi bagian dalam.",
@@ -120,12 +120,13 @@ diseases = {
         ],
         "severity": "Tinggi",
         "image": "Target Spot.jpg",
+        "sources": "https://ipm.ifas.ufl.edu/pdfs/Target_Spot.pdf"
     },
 
     # ---------- 5) Early blight — TINGGI ----------
     "Early Blight": {
         "info": [
-            " "
+            "Disebabkan oleh jamur Alternaria solani atau Alternaria tomatophila; percikan tanah & daun basah mempercepat infeksi."
         ],
         "desc": [
             "Bercak cokelat dengan lingkar konsentris ‘bullseye’ pada daun tua → defoliasi; dapat menjalar ke batang/buah.",
@@ -137,12 +138,16 @@ diseases = {
         ],
         "severity": "Tinggi",
         "image": "Early Blight.jpg",
+        "sources": [
+            "https://utia.tennessee.edu/publications/wp-content/uploads/sites/269/2023/10/W1027.pdf", 
+            "https://extension.umd.edu/resource/early-blight-tomatoes"
+        ]
     },
 
     # ---------- 6) Bacterial spot — SEDANG → TINGGI (CABUT SELEKTIF KONTEKSTUAL) ----------
     "Bacterial Spot": {
         "info": [
-            " "
+            "Disebabkan oleh bakteri family Xanthomonas (misalnya Xanthomonas euvesicatoria, Xanthomonas perforans, dll.); sangat berkembang pada hangat–lembap dan dapat terbawa benih/transplan."
         ],
         "desc": [
             "Bercak kecil berair → nekrotik pada daun; tepi klorotik. Pada buah: bercak kasar/berlekuk.",
@@ -155,12 +160,17 @@ diseases = {
         ],
         "severity": "Sedang → Tinggi (cabut selektif pada pembibitan/penyebaran luas)",
         "image": "Bacterial Spot.jpg",
+        "sources": [
+            "https://extension.umn.edu/disease-management/bacterial-spot-tomato-and-pepper",
+            "https://pmc.ncbi.nlm.nih.gov/articles/PMC8578828",
+            "https://edis.ifas.ufl.edu/publication/PP353"
+        ]
     },
 
     # ---------- 7) TMV/ToMV — TINGGI (ERADIKASI DIANJURKAN) ----------
     "Tomato Mosaic Virus (TMV)": {
         "info": [
-            " "
+            "Disebabkan oleh tobamovirus (genus virus RNA untai positif dalam famili Virgaviridae) yang sangat stabil & menular secara mekanis (tangan, alat, pakaian, benih)."
         ],
         "desc": [
             "Mozaik hijau–kuning, daun menyempit/keriting, tanaman kerdil.",
@@ -172,12 +182,16 @@ diseases = {
         ],
         "severity": "Tinggi (eradikasi/rogueing dianjurkan)",
         "image": "Tomato Mosaic Virus (TMV).JPG",
+        "sources": [
+            "https://tobacco.ces.ncsu.edu/2025/05/managing-tobacco-mosaic-virus-tmv-in-tobacco",
+            "https://extension.umn.edu/disease-management/tomato-viruses"
+        ]
     },
 
     # ---------- 8) TYLCV — SANGAT TINGGI → EKSTREM ----------
     "Tomato Yellow Leaf Curl Virus (TYLCV)": {
         "info": [
-            " "
+            "Disebabkan oleh virus yang ditularkan kutu kebul (Bemisia tabaci)."
         ],
         "desc": [
             "Daun kecil menguning & menggulung ke atas; tanaman kerdil; gugur bunga → kehilangan hasil signifikan.",
@@ -189,12 +203,17 @@ diseases = {
         ],
         "severity": "Sangat Tinggi → Ekstrem (eradikasi cepat + kendali vektor)",
         "image": "Tomato Yellow Leaf Curl Virus (TYLCV).jpg",
+        "sources": [
+            "https://ipm.ucanr.edu/agriculture/tomato/tomato-yellow-leaf-curl",
+            "https://content.ces.ncsu.edu/tomato-yellow-leaf-curl-virus"
+            "https://ipm.ucanr.edu/PMG/PESTNOTES/pn7401.html"
+        ]
     },
 
     # ---------- 9) Late blight — EKSTREM ----------
     "Late Blight": {
         "info": [
-            " "
+            "Disebabkan oleh oomycete bernama Phytophthora infestans yang menyebar cepat melalui spora udara pada cuaca sejuk–basah; dapat memusnahkan tanaman dalam hitungan hari."
         ],
         "desc": [
             "Bercak berminyak cepat meluas; tepi bawah daun bersporulasi putih; menyerang daun, batang, hingga buah.",
@@ -206,6 +225,12 @@ diseases = {
         ],
         "severity": "Ekstrem (eradikasi + penghapusan tanaman sekitar)",
         "image": "Late Blight.jpg",
+        "sources": [
+            "https://s3.amazonaws.com/assets.cce.cornell.edu/attachments/67616/Late_Blight_Plain_Grower_ID_2024.pdf",
+            "https://bpb-us-e1.wpmucdn.com/blogs.cornell.edu/dist/1/7446/files/2020/04/late-blight_factsheet.pdf",
+            "https://extension.psu.edu/tomato-potato-late-blight-in-the-home-garden",
+            "https://www.vegetables.cornell.edu/crops/tomatoes/late-blight"
+        ]
     },
 }
 
@@ -328,6 +353,7 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
 
 
 
