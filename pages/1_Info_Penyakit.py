@@ -56,10 +56,11 @@ diseases = {
         ],
         "severity": "Rendah → Sedang",
         "image": "Spider Mites.jpg",
-        "sources":
+        "sources": [
             "https://extension.umn.edu/yard-and-garden-insects/spider-mites", 
             "https://extension.oregonstate.edu/catalog/how-recognize-manage-spider-mites-home-garden",
             "https://extension.umn.edu/yard-and-garden-insects/spider-mites"
+        ]
     },
 
     # ---------- 2) Leaf mold — RENDAH → SEDANG ----------
@@ -320,4 +321,5 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
 
