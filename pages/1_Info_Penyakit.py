@@ -37,7 +37,7 @@ diseases = {
         ],
         "severity": "—",
         "image": "Healthy.jpg",
-        "sources":  
+        "sources":
             "https://www.vegetables.cornell.edu/pest-management/disease-factsheets/managing-tomato-diseases-successfully"
     },
 
@@ -317,6 +317,7 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
 
 
 
