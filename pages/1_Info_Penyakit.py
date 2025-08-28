@@ -41,7 +41,7 @@ diseases = {
     },
 
     # ---------- 1) Spider mites — RENDAH → SEDANG ----------
-    "Spider Mites (tungau laba-laba)": {
+    "Spider Mites": {
         "info": [
             "Disebabkan oleh infestasi tungau (terutama Tetranychus urticae) yang mengisap cairan sel; populasi melonjak pada kondisi panas–kering/berdebu, mengakibatkan tanaman menjadi stres."
         ],
@@ -316,6 +316,7 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
 
 
 
