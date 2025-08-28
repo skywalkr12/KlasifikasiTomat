@@ -2,9 +2,17 @@ import streamlit as st
 
 st.set_page_config(page_title="🩺 Informasi Penyakit Tanaman Tomat", layout="wide")
 
-# =========================
-# DATA (Healthy: biarkan/ubah sesuai punyamu)
-# =========================
+# ============================================================
+# Daftar penyakit daun tomat tersusun dari yang paling bisa
+# dipulihkan tanpa pencabutan → hingga yang wajib eradikasi.
+# Rasional singkat (ringkas & akademik):
+# - Kelompok “dikelola tanpa cabut”: Spider Mites, Leaf Mold,
+#   Septoria Leaf Spot, Target Spot, Early Blight.
+# - “Cabut selektif (kontekstual)”: Bacterial Spot—terutama
+#   pada pembibitan atau saat penyebaran luas.
+# - “Wajib eradikasi”: TMV/ToMV, TYLCV, Late Blight.
+# ============================================================
+
 diseases = {
     "Healthy": {
         "desc": [
@@ -32,10 +40,10 @@ diseases = {
     "Spider Mites": {
         "desc": [
             "Bintik keperakan (stippling) & bronzing pada daun, kadang kecokelatan.",
-            "Jaring halus di bawah daun; populasi meledak saat panas–kering."
+            "Jaring halus di bawah daun; populasi meningkat pada kondisi panas–kering/berdebu."
         ],
         "handling": [
-            "Pencegahan: kurangi stres kekeringan & debu; jaga musuh alami; hindari insektisida spektrum luas.",
+            "Pencegahan: kurangi stres kekeringan & debu; pelihara musuh alami; hindari insektisida spektrum luas.",
             "Jika sudah ada: semprot air kuat ke bawah daun; sabun insektisida/minyak hortikultura; mitisida selektif atau predator (mis. *Phytoseiulus*)."
         ],
         "severity": "Rendah → Sedang",
@@ -46,10 +54,10 @@ diseases = {
     "Leaf Mold": {
         "desc": [
             "Bercak kuning di atas daun; bawah daun berlapis jamur zaitun/kehijauan (beludru).",
-            "Parah pada RH >85% (rumah-tanam) dan kanopi lembap."
+            "Dominan pada RH >85% (greenhouse/kanopi lembap)."
         ],
         "handling": [
-            "Pencegahan: ventilasi/kurangi RH, jarak tanam & siram di pangkal; varietas toleran.",
+            "Pencegahan: ventilasi/kurangi RH, jarak tanam & siram di pangkal; gunakan varietas toleran jika tersedia.",
             "Jika muncul: buang daun terinfeksi; fungisida protektan (klorotalonil/mankozeb/tembaga) sesuai label."
         ],
         "severity": "Rendah → Sedang",
@@ -59,117 +67,139 @@ diseases = {
     # ---------- 3) Septoria leaf spot — SEDANG ----------
     "Septoria Leaf Spot": {
         "desc": [
-            "Banyak bercak kecil (±1–3 mm) berpusat pucat dengan titik hitam (pycnidia) terutama di daun bawah.",
-            "Dapat menyebabkan defoliasi berat jika dibiarkan."
+            "Bercak kecil banyak (±1–3 mm) berpusat pucat dengan titik hitam (pycnidia), terutama di daun bawah.",
+            "Berpotensi defoliasi progresif bila tidak dikendalikan."
         ],
         "handling": [
             "Pencegahan: rotasi 2–3 th, mulsa untuk cegah percikan, sanitasi sisa tanaman, siram pangkal.",
-            "Jika muncul: protektan (klorotalonil/mankozeb/tembaga) terjadwal; buang daun bawah terinfeksi."
+            "Jika muncul: protektan (klorotalonil/mankozeb/tembaga) terjadwal; buang selektif daun bawah terinfeksi (hindari memangkas >⅓ tajuk)."
         ],
         "severity": "Sedang",
         "image": "Septoria Leaf Spot.jpg",
     },
 
-    # ---------- 4) TMV/ToMV — SEDANG → TINGGI ----------
-    "Tomato Mosaic Virus (TMV)": {
-        "desc": [
-            "Mozaik hijau–kuning, daun menyempit/keriting, tanaman kerdil.",
-            "Penularan utama: mekanis & benih/permukaan alat (sangat stabil)."
-        ],
-        "handling": [
-            "Pencegahan: benih/bibit bebas virus atau perlakuan benih; disinfeksi alat & tangan; higienitas tinggi.",
-            "Jika sudah ada: cabut tanaman sakit; cegah penyebaran (tidak ada kuratif)."
-        ],
-        "severity": "Sedang → Tinggi",
-        "image": "Tomato Mosaic Virus (TMV).JPG",
-    },
-
-    # ---------- 5) Bacterial spot — SEDANG → TINGGI ----------
-    "Bacterial Spot": {
-        "desc": [
-            "Bercak kecil berair → nekrotik pada daun; tepi kuning. Pada buah: bercak kasar/berlekuk.",
-            "Sangat rawan di kondisi hangat–lembab."
-        ],
-        "handling": [
-            "Pencegahan: benih/transplan sehat, rotasi, hindari percikan & bekerja saat tanaman basah.",
-            "Jika muncul: semprot tembaga + mankozeb sebagai protektan (efektivitas bervariasi; waspadai resistensi)."
-        ],
-        "severity": "Sedang → Tinggi",
-        "image": "Bacterial Spot.jpg",
-    },
-
-    # ---------- 6) Target spot — TINGGI ----------
+    # ---------- 4) Target spot — TINGGI ----------
     "Target Spot": {
         "desc": [
-            "Lesi bertarget (cincin konsentris) dengan pusat keabu-abuan; defoliasi terutama di kanopi bagian dalam.",
+            "Lesi bertarget (cincin konsentris) dengan pusat keabu-abuan; defoliasi di kanopi bagian dalam.",
             "Dapat mengenai buah (lesi berlekuk)."
         ],
         "handling": [
-            "Pencegahan: rotasi, aerasi kanopi baik; hindari kelembapan berlebih pada daun.",
+            "Pencegahan: rotasi, aerasi kanopi baik; minimalkan kelembapan daun.",
             "Jika muncul: protektan (klorotalonil/tembaga/mankozeb) interval 10–14 hari sesuai label."
         ],
         "severity": "Tinggi",
         "image": "Target Spot.jpg",
     },
 
-    # ---------- 7) Early blight — TINGGI ----------
+    # ---------- 5) Early blight — TINGGI ----------
     "Early Blight": {
         "desc": [
-            "Bercak cokelat ‘bullseye’ (lingkar konsentris) pada daun tua → defoliasi; dapat ke batang/buah.",
-            "Berkembang pada kelembapan daun dan percikan tanah."
+            "Bercak cokelat dengan lingkar konsentris ‘bullseye’ pada daun tua → defoliasi; dapat menjalar ke batang/buah.",
+            "Dipicu kelembapan daun & percikan tanah."
         ],
         "handling": [
             "Pencegahan: rotasi 2–3 th, buang sisa tanaman, pemupukan seimbang; siram pangkal & mulsa.",
-            "Jika muncul: protektan/sistemik sejak dini dan terjadwal (mis. klorotalonil/mankozeb sesuai label)."
+            "Jika muncul: protektan/sistemik sejak dini dan terjadwal (mis. klorotalonil/mankozeb sesuai label; interval 7–10 hari saat tekanan tinggi)."
         ],
         "severity": "Tinggi",
         "image": "Early Blight.jpg",
     },
 
-    # ---------- 8) Late blight — SANGAT TINGGI ----------
-    "Late Blight": {
+    # ---------- 6) Bacterial spot — SEDANG → TINGGI (CABUT SELEKTIF KONTEKSTUAL) ----------
+    "Bacterial Spot": {
         "desc": [
-            "Bercak berminyak cepat meluas; tepi bawah daun bersporulasi putih; menyerang daun, batang, buah.",
-            "Sangat cepat pada cuaca sejuk–basah (dataran tinggi, musim hujan sejuk)."
+            "Bercak kecil berair → nekrotik pada daun; tepi klorotik. Pada buah: bercak kasar/berlekuk.",
+            "Sangat rawan di kondisi hangat–lembap; tidak ada kuratif spesifik."
         ],
         "handling": [
-            "Pencegahan: sumber inokulum bersih, monitoring kondisi cuaca; protektan + anti-oomycete sesuai label.",
-            "Jika parah: singkirkan tanaman sangat terinfeksi untuk memutus siklus."
+            "Pencegahan: benih/transplan sehat, rotasi, hindari percikan & bekerja saat tanaman basah; sanitasi intensif.",
+            "Protektan: tembaga ± mankozeb sebagai pencegah (efektivitas bervariasi; waspadai resistensi).",
+            "Cabut selektif: transplan/bibit bergejala atau bila penyebaran luas untuk memutus sumber inokulum."
         ],
-        "severity": "Sangat Tinggi",
-        "image": "Late Blight.jpg",
+        "severity": "Sedang → Tinggi (cabut selektif pada pembibitan/penyebaran luas)",
+        "image": "Bacterial Spot.jpg",
     },
 
-    # ---------- 9) TYLCV — EKSTREM ----------
+    # ---------- 7) TMV/ToMV — TINGGI (ERADIKASI DIANJURKAN) ----------
+    "Tomato Mosaic Virus (TMV)": {
+        "desc": [
+            "Mozaik hijau–kuning, daun menyempit/keriting, tanaman kerdil.",
+            "Penularan utama: mekanis & benih/permukaan alat (stabil dan menular tinggi)."
+        ],
+        "handling": [
+            "Pencegahan: benih/bibit bebas virus atau perlakuan benih; disinfeksi alat & tangan; higienitas tinggi.",
+            "Jika sudah ada: cabut & musnahkan tanaman sakit; cegah penyebaran (tidak ada kuratif)."
+        ],
+        "severity": "Tinggi (eradikasi/rogueing dianjurkan)",
+        "image": "Tomato Mosaic Virus (TMV).JPG",
+    },
+
+    # ---------- 8) TYLCV — SANGAT TINGGI → EKSTREM ----------
     "Tomato Yellow Leaf Curl Virus (TYLCV)": {
         "desc": [
-            "Daun kecil menguning & menggulung ke atas; tanaman kerdil; gugur bunga → kehilangan hasil besar.",
-            "Vektor: kutu kebul *Bemisia tabaci*; **tidak terbawa benih**."
+            "Daun kecil menguning & menggulung ke atas; tanaman kerdil; gugur bunga → kehilangan hasil signifikan.",
+            "Vektor: kutu kebul *Bemisia tabaci*; tidak terbawa benih."
         ],
         "handling": [
             "Pencegahan: varietas tahan; pengelolaan vektor (mulsa reflektif, sabun/insektisida selektif, sanitasi gulma inang).",
-            "Jika muncul: cabut tanaman terinfeksi dini; fokus pada kontrol vektor & kebersihan persemaian."
+            "Jika muncul: cabut tanaman terinfeksi sedini mungkin (bungkus plastik saat dicabut), fokus pada kontrol vektor & kebersihan persemaian."
         ],
-        "severity": "Ekstrem",
+        "severity": "Sangat Tinggi → Ekstrem (eradikasi cepat + kendali vektor)",
         "image": "Tomato Yellow Leaf Curl Virus (TYLCV).jpg",
-    }
+    },
+
+    # ---------- 9) Late blight — EKSTREM ----------
+    "Late Blight": {
+        "desc": [
+            "Bercak berminyak cepat meluas; tepi bawah daun bersporulasi putih; menyerang daun, batang, hingga buah.",
+            "Penyakit komunitas yang sangat cepat menyebar pada cuaca sejuk–basah."
+        ],
+        "handling": [
+            "Pencegahan: sumber inokulum bersih, monitoring kondisi cuaca; protektan + anti-oomycete sesuai label.",
+            "Eradikasi: singkirkan tanaman terinfeksi dan tanaman sekitar untuk memutus siklus (jangan dikompos)."
+        ],
+        "severity": "Ekstrem (eradikasi + penghapusan tanaman sekitar)",
+        "image": "Late Blight.jpg",
+    },
 }
 
 # =========================
-# ORDER (Least -> Most severe; Healthy ditaruh di atas)
+# ORDER (Least -> Most severe; Healthy di atas)
 # =========================
 ordered_keys = [
     "Healthy",
     "Spider Mites",
     "Leaf Mold",
     "Septoria Leaf Spot",
-    "Tomato Mosaic Virus (TMV)",
-    "Bacterial Spot",
     "Target Spot",
     "Early Blight",
+    "Bacterial Spot",
+    "Tomato Mosaic Virus (TMV)",
+    "Tomato Yellow Leaf Curl Virus (TYLCV)",
     "Late Blight",
-    "Tomato Yellow Leaf Curl Virus (TYLCV)"
 ]
+
+# ============================================================
+# FEEDBACK LOOP (komentar untuk transparansi penalaran)
+# - Asumsi utama: urutan ditentukan oleh dua sumbu:
+#   (1) laju kerusakan & risiko epidemi, (2) ketegasan rekomendasi
+#       tindakan (apakah cukup protektan/sanitasi vs. wajib cabut).
+# - Potensi jebakan: salah diagnosis “leaf spots” (Septoria/Alternaria/
+#   Target spot) dapat menggeser keputusan; verifikasi morfologi
+#   (pycnidia, pola “bullseye”, dll.) penting.
+# - Alternatif: Bacterial Spot bisa bergeser lebih tinggi jika terjadi
+#   pada pembibitan intensif (karena eradikasi batch sering lebih
+#   efektif daripada perawatan bertahap).
+# - Cara verifikasi praktis:
+#   a) Observasi 48–72 jam pada kasus dicurigai virus/late blight; cek
+#      progres cepat atau sporulasi putih (late blight).
+#   b) Terapkan disinfeksi alat/tangan (pemutih 1:9 ±1 menit) pada
+#      setiap pemangkasan atau kontak jaringan untuk menekan transmisi
+#      mekanis virus.
+#   c) Dokumentasikan gejala (atas/bawah daun & buah) dan cocokkan
+#      dengan panduan extension setempat sebelum mengeksekusi “cabut”.
+# ============================================================
 
 # =========================
 # HELPERS
@@ -230,4 +260,5 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
 
