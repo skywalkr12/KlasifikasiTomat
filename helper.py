@@ -1,5 +1,5 @@
 # helper.py
-# — ResNet9-variant + Loader .pt tangguh + Temperature Scaling —
+# — ResNet9-variant + Loader .pt + Temperature Scaling (tanpa Grad-CAM) —
 # Tidak ada rendering Streamlit di file ini. Semua tampilan diatur dari klasifikasi.py.
 
 import os
@@ -9,7 +9,7 @@ import torch.nn.functional as F
 import torchvision.transforms as transforms
 from PIL import Image
 
-# ================= Util umum =================
+# ========= Util umum =========
 def accuracy(outputs, labels):
     _, preds = torch.max(outputs, dim=1)
     return torch.tensor(torch.sum(preds == labels).item() / len(preds))
@@ -53,7 +53,7 @@ def ConvBlock(in_channels, out_channels, pool=False):
         layers.append(nn.MaxPool2d(4))
     return nn.Sequential(*layers)
 
-# ================= Model (ResNet9-variant) =================
+# ========= Model (ResNet9-variant) =========
 class ResNet9(ImageClassificationBase):
     def __init__(self, num_diseases=10, in_channels=3):
         super().__init__()
@@ -80,9 +80,7 @@ class ResNet9(ImageClassificationBase):
         out = self.res2(out) + out
         return self.classifier(out)
 
-# ================= Daftar kelas (fallback) =================
-# Catatan: ini fallback. Jika checkpoint menyimpan "class_names",
-# daftar di bawah akan di-override saat load_model().
+# ========= Daftar kelas (fallback; akan dioverride jika ada di checkpoint) =========
 CLASS_NAMES = [
     "Tomato_Bacterial_spot",
     "Tomato_Early_blight",
@@ -96,18 +94,17 @@ CLASS_NAMES = [
     "Tomato_healthy",
 ]
 
-# ================= Transform (cocokkan dengan training) =================
-# Untuk INFERENSI sebaiknya TANPA augmentasi acak agar konsisten.
+# ========= Transform (samakan dengan training; tanpa augmentasi acak di inferensi) =========
 transform = transforms.Compose([
     transforms.Resize((256, 256)),
     transforms.ToTensor()
 ])
 
-# ================= Temperature Scaling =================
+# ========= Temperature Scaling =========
 DEFAULT_T = 0.9137
 TEMPERATURE = DEFAULT_T
 
-# ================= Loader .pt (tangguh) =================
+# ========= Loader .pt (tangguh) =========
 def _strip_module(sd: dict) -> dict:
     return {
         (k.replace("module.", "") if k.startswith("module.") else k): v
@@ -115,42 +112,37 @@ def _strip_module(sd: dict) -> dict:
     }
 
 def _infer_num_classes_from_sd(sd: dict, fallback: int) -> int:
-    # Coba cari bobot linear terakhir yang biasanya punya shape (num_classes, in_feat)
     for key in ["classifier.3.weight", "classifier.0.weight", "fc.weight"]:
         if key in sd and hasattr(sd[key], "shape"):
             return int(sd[key].shape[0])
-    # fallback
     return int(fallback)
 
-def _build_model_for_sd(sd: dict, arch_hint: str | None, num_classes: int) -> nn.Module:
-    # Saat ini arsitektur yang digunakan adalah ResNet9; sesuaikan jika ada arch lain.
+def _build_model_for_sd(sd: dict, num_classes: int) -> nn.Module:
     return ResNet9(num_diseases=num_classes, in_channels=3)
 
 def _load_checkpoint_generic(path: str):
     """
-    Mengembalikan (model, class_names, temperature)
-    Mendukung format:
+    Return (model, class_names, temperature)
+    Mendukung:
       1) nn.Module / TorchScript (model utuh)
       2) dict checkpoint berisi:
            - model_state_dict (preferred) ATAU langsung state_dict
            - temperature (opsional)
            - class_names (opsional)
-           - arch (opsional)
     """
     obj = torch.load(path, map_location="cpu")
 
-    # (1) Jika langsung model
+    # (1) model utuh
     if isinstance(obj, torch.jit.ScriptModule) or isinstance(obj, nn.Module):
         model = obj
         class_names = CLASS_NAMES
         T = DEFAULT_T
         return model, class_names, T
 
-    # (2) Dict checkpoint/state_dict
+    # (2) dict
     if not isinstance(obj, dict):
         raise RuntimeError("Format .pt tidak dikenal. Harus nn.Module/TorchScript atau dict checkpoint/state_dict.")
 
-    arch = obj.get("arch", None)
     class_names = obj.get("class_names", CLASS_NAMES)
     T = float(obj.get("temperature", DEFAULT_T))
 
@@ -160,57 +152,42 @@ def _load_checkpoint_generic(path: str):
         sd = _strip_module(obj)
 
     num_classes = _infer_num_classes_from_sd(sd, fallback=len(class_names))
-    model = _build_model_for_sd(sd, arch, num_classes)
+    model = _build_model_for_sd(sd, num_classes)
     model.load_state_dict(sd, strict=True)
     return model, class_names, T
 
 def load_model(model_path: str | None = None):
     """
-    Mencoba beberapa kandidat lokasi file model.
-    Meng-set global CLASS_NAMES & TEMPERATURE dari checkpoint bila tersedia.
+    Memuat model dari path tetap: model/resnet9_finetuned.pt
+    Jika argumen diberikan, tetap prioritaskan path tetap ini sesuai permintaan user.
     """
     global CLASS_NAMES, TEMPERATURE
+    fixed_path = "model/resnet9_finetuned.pt"
 
-    candidates = [
-        model_path,
-        "resnet9_finetuned.pt",
-        "/mnt/data/resnet9_finetuned.pt",
-        "model/resnet9_finetuned.pt",
-        "model/best_model6.pt",
-    ]
-    candidates = [p for p in candidates if p]  # buang None
+    if not os.path.exists(fixed_path):
+        raise FileNotFoundError(f"File model tidak ditemukan di: {fixed_path}")
 
-    last_err = None
-    for p in candidates:
-        if os.path.exists(p):
-            try:
-                model, class_names, T = _load_checkpoint_generic(p)
-                CLASS_NAMES = list(class_names) if isinstance(class_names, (list, tuple)) else CLASS_NAMES
-                TEMPERATURE = float(T) if T is not None else DEFAULT_T
-                # Matikan inplace ReLU (aman untuk hook/analisis apapun)
-                for m in model.modules():
-                    if isinstance(m, nn.ReLU):
-                        m.inplace = False
-                model.eval()
-                return model
-            except Exception as e:
-                last_err = e
-                # coba kandidat berikut
-                continue
-    raise FileNotFoundError(f"Gagal memuat model. Kandidat: {candidates}. Error terakhir: {last_err}")
+    model, class_names, T = _load_checkpoint_generic(fixed_path)
+    CLASS_NAMES = list(class_names) if isinstance(class_names, (list, tuple)) else CLASS_NAMES
+    TEMPERATURE = float(T) if T is not None else DEFAULT_T
 
-# ================= Prediksi (Softmax dengan Temperature Scaling) =================
+    for m in model.modules():
+        if isinstance(m, nn.ReLU):
+            m.inplace = False
+    model.eval()
+    return model
+
+# ========= Prediksi (Softmax dengan Temperature Scaling) =========
 @torch.no_grad()
 def predict_image(model, image: Image.Image):
     """
-    Menghasilkan:
-      - label prediksi (nama kelas)
-      - probs_T: probabilitas setelah temperature scaling (sum=1)
+    Return:
+      - label prediksi (string)
+      - probs_T: probabilitas setelah temperature scaling (numpy, sum=1)
       - logits: vektor logit mentah (numpy)
     """
-    x = transform(image).unsqueeze(0)  # CPU ok; Streamlit biasanya CPU
-    logits = model(x)[0]               # tensor shape (C,)
-    # Temperature scaling
+    x = transform(image).unsqueeze(0)
+    logits = model(x)[0]  # (C,)
     probs_T = torch.softmax(logits / float(TEMPERATURE), dim=0).cpu().numpy()
     idx = int(np.argmax(probs_T))
     return CLASS_NAMES[idx], probs_T, logits.detach().cpu().numpy()
