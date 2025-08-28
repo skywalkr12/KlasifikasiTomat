@@ -37,9 +37,8 @@ diseases = {
         ],
         "severity": "—",
         "image": "Healthy.jpg",
-        "source": [ 
+        "sources":  
             "https://www.vegetables.cornell.edu/pest-management/disease-factsheets/managing-tomato-diseases-successfully"
-        ],
     },
 
     # ---------- 1) Spider mites — RENDAH → SEDANG ----------
@@ -57,11 +56,10 @@ diseases = {
         ],
         "severity": "Rendah → Sedang",
         "image": "Spider Mites.jpg",
-        "source": [
+        "source":
             "https://extension.umn.edu/yard-and-garden-insects/spider-mites", 
             "https://extension.oregonstate.edu/catalog/how-recognize-manage-spider-mites-home-garden",
             "https://extension.umn.edu/yard-and-garden-insects/spider-mites"
-        ]
     },
 
     # ---------- 2) Leaf mold — RENDAH → SEDANG ----------
@@ -79,9 +77,7 @@ diseases = {
         ],
         "severity": "Rendah → Sedang",
         "image": "Leaf Mold.jpg",
-        "source": [
-
-        ]
+        "sources": 
     },
 
     # ---------- 3) Septoria leaf spot — SEDANG ----------
@@ -299,7 +295,7 @@ def render_section(name: str, data: dict):
     render_paragraph("Informasi Singkat:", data.get("info"))
     render_numbered("Ciri-ciri/Gejala & Catatan:", data.get("desc", "-"))
     render_numbered("Pencegahan & Penanganan:", data.get("handling", "-"))
-    render_numbered("Sumber terkait:"("source", ))
+    render_sources(data.get("sources", []))
     st.divider()
 
 # =========================
@@ -324,16 +320,3 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
-
-
-
-
-
-
-
-
-
-
-
-
-
