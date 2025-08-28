@@ -1,4 +1,4 @@
-# prediksi.py
+# prediksi.py diganti menjadi -> klasifikasi.py
 # -- Gate "tomato-only" (LAB + anti-skin, sederhana) + Prediksi Kelas
 # -- + Deteksi Kekuningan (chlorosis) & Indikator Kelayuan (wilt)
 # Tambahkan ke requirements.txt: opencv-python-headless>=4.9.0
@@ -187,7 +187,7 @@ st.title("🌿 Klasifikasi Penyakit Tanaman Tomat dengan fitur Deteksi Kekuninga
 if "history" not in st.session_state:
     st.session_state["history"] = []
 
-DISPLAY_CAP = 0.9900
+DISPLAY_CAP = 0.9700
 def cap_for_display(p: float, cap: float = DISPLAY_CAP) -> float:
     return p if p < cap else cap
 def fmt_pct(p: float, cap: float = DISPLAY_CAP, decimals: int = 2) -> str:
@@ -308,17 +308,23 @@ if uploaded_file:
         for i in order
     ]))
 
-    if show_full_chart:
-        st.subheader("📊 Probabilitas per Kelas")
-        probs_plot = np.minimum(np.array(probs_raw, dtype=float), DISPLAY_CAP)
-        idxs = np.argsort(-probs_plot) if sort_desc else np.arange(len(CLASS_NAMES))
-        fig, ax = plt.subplots()
-        ax.barh([CLASS_NAMES[i] for i in idxs], probs_plot[idxs], height=0.6)
-        ax.invert_yaxis()
-        ax.set_xlim(0, 1)
-        ax.set_xlabel("Probabilitas")
-        ax.set_ylabel("Kelas")
-        st.pyplot(fig)
+if show_full_chart:
+    st.subheader("📊 Probabilitas per Kelas (A→Z)")
+
+    probs_plot = np.minimum(np.array(probs_raw, dtype=float), DISPLAY_CAP)
+
+    # Urutan alfabet (case-insensitive) berdasarkan CLASS_NAMES
+    az_order = np.argsort(np.char.lower(np.array(CLASS_NAMES, dtype="U")))
+    labels_az = [CLASS_NAMES[i] for i in az_order]
+    values_az = probs_plot[az_order]
+
+    fig, ax = plt.subplots()
+    ax.barh(labels_az, values_az, height=0.6)
+    ax.set_xlim(0, 1)
+    ax.set_xlabel("Probabilitas")
+    ax.set_ylabel("Kelas")
+    ax.invert_yaxis()  # supaya 'A' tampil di paling atas
+    st.pyplot(fig)
 
     st.session_state["history"].append({
         "Tanggal": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -356,6 +362,7 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
 
 
 
