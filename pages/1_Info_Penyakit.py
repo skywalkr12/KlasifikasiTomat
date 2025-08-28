@@ -15,6 +15,9 @@ st.set_page_config(page_title="🩺 Informasi Penyakit Tanaman Tomat", layout="w
 
 diseases = {
     "Healthy": {
+        "info": [
+            "Tanaman sehat menunjukkan daun hijau merata, tanpa bercak, dan kanopi berangin. Praktik dasar seperti mengurangi kebasahan daun, rotasi ≥2 tahun, dan inspeksi rutin memang terbukti menurunkan risiko penyakit utama pada tomat."
+        ],
         "desc": [
             "Warna hijau merata (tidak mosaik/klorosis).",
             "Tidak ada bercak/lesi.",
@@ -234,6 +237,7 @@ def render_section(name: str, data: dict):
             st.image(f"images/{img_path}", width=260)
         except Exception:
             pass
+    render_numbered("Informasi Singkat:", data.get("info", "-"))
     render_numbered("Ciri-ciri/Gejala & Catatan:", data.get("desc", "-"))
     render_numbered("Pencegahan & Penanganan:", data.get("handling", "-"))
     render_sources(data.get("sources", []))
@@ -261,6 +265,7 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
 
 
 
