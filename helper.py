@@ -1,5 +1,5 @@
 # helper.py
-# — ResNet9-variant + Loader .pt + Temperature Scaling (tanpa Grad-CAM) —
+# — Robust .pt loader (ResNet9/ResNet18 autodetect) + Temperature Scaling —
 # Tidak ada rendering Streamlit di file ini. Semua tampilan diatur dari klasifikasi.py.
 
 import os
@@ -7,9 +7,10 @@ import torch, numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms as transforms
+from torchvision import models
 from PIL import Image
 
-# ========= Util umum =========
+# ================= Util umum =================
 def accuracy(outputs, labels):
     _, preds = torch.max(outputs, dim=1)
     return torch.tensor(torch.sum(preds == labels).item() / len(preds))
@@ -53,7 +54,7 @@ def ConvBlock(in_channels, out_channels, pool=False):
         layers.append(nn.MaxPool2d(4))
     return nn.Sequential(*layers)
 
-# ========= Model (ResNet9-variant) =========
+# ================= Model (ResNet9-variant) =================
 class ResNet9(ImageClassificationBase):
     def __init__(self, num_diseases=10, in_channels=3):
         super().__init__()
@@ -80,7 +81,13 @@ class ResNet9(ImageClassificationBase):
         out = self.res2(out) + out
         return self.classifier(out)
 
-# ========= Daftar kelas (fallback; akan dioverride jika ada di checkpoint) =========
+# ================= Global info untuk ditampilkan di UI =================
+LOAD_NOTES: list[str] = []
+
+def get_load_notes() -> list[str]:
+    return LOAD_NOTES
+
+# ================= Daftar kelas (fallback; dioverride jika ada di checkpoint) =================
 CLASS_NAMES = [
     "Tomato_Bacterial_spot",
     "Tomato_Early_blight",
@@ -94,30 +101,42 @@ CLASS_NAMES = [
     "Tomato_healthy",
 ]
 
-# ========= Transform (samakan dengan training; tanpa augmentasi acak di inferensi) =========
+# ================= Transform (samakan dengan training; tanpa augmentasi acak di inferensi) =================
 transform = transforms.Compose([
     transforms.Resize((256, 256)),
     transforms.ToTensor()
 ])
 
-# ========= Temperature Scaling =========
+# ================= Temperature Scaling =================
 DEFAULT_T = 0.9137
 TEMPERATURE = DEFAULT_T
 
-# ========= Loader .pt (tangguh) =========
+# ================= Helper loading =================
 def _strip_module(sd: dict) -> dict:
-    return {
-        (k.replace("module.", "") if k.startswith("module.") else k): v
-        for k, v in sd.items()
-    }
+    return { (k.replace("module.", "") if k.startswith("module.") else k): v for k, v in sd.items() }
 
 def _infer_num_classes_from_sd(sd: dict, fallback: int) -> int:
-    for key in ["classifier.3.weight", "classifier.0.weight", "fc.weight"]:
-        if key in sd and hasattr(sd[key], "shape"):
-            return int(sd[key].shape[0])
+    # Cari bobot linear akhir (num_classes, in_features)
+    cand_keys = [k for k in sd.keys() if k.endswith(".weight")]
+    for k in ["classifier.3.weight", "classifier.2.weight", "fc.weight", "head.weight", "linear.weight"]:
+        if k in sd and sd[k].ndim == 2:
+            return int(sd[k].shape[0])
+    for k in cand_keys:
+        if sd[k].ndim == 2:  # heuristic
+            return int(sd[k].shape[0])
     return int(fallback)
 
+def _looks_like_resnet18(sd_keys: list[str]) -> bool:
+    # Ciri khas torchvision ResNet18: layer1/2/3/4, bn1, conv1, fc
+    return any(k.startswith("layer1.") for k in sd_keys) and any(k.startswith("layer2.") for k in sd_keys)
+
 def _build_model_for_sd(sd: dict, num_classes: int) -> nn.Module:
+    if _looks_like_resnet18(list(sd.keys())):
+        m = models.resnet18(weights=None)
+        m.fc = nn.Linear(m.fc.in_features, num_classes)
+        LOAD_NOTES.append("Autodetect arsitektur: ResNet18.")
+        return m
+    LOAD_NOTES.append("Autodetect arsitektur: ResNet9.")
     return ResNet9(num_diseases=num_classes, in_channels=3)
 
 def _load_checkpoint_generic(path: str):
@@ -137,6 +156,7 @@ def _load_checkpoint_generic(path: str):
         model = obj
         class_names = CLASS_NAMES
         T = DEFAULT_T
+        LOAD_NOTES.append("Checkpoint berisi model utuh.")
         return model, class_names, T
 
     # (2) dict
@@ -153,17 +173,27 @@ def _load_checkpoint_generic(path: str):
 
     num_classes = _infer_num_classes_from_sd(sd, fallback=len(class_names))
     model = _build_model_for_sd(sd, num_classes)
-    model.load_state_dict(sd, strict=True)
+
+    # Coba strict=True; jika gagal, jatuhkan ke strict=False dan catat missing/unexpected
+    try:
+        model.load_state_dict(sd, strict=True)
+    except RuntimeError as e:
+        LOAD_NOTES.append("strict=True gagal saat load_state_dict; mencoba strict=False.")
+        missing, unexpected = model.load_state_dict(sd, strict=False)
+        if missing:
+            LOAD_NOTES.append(f"Missing keys: {', '.join(missing[:10])}" + (" ..." if len(missing) > 10 else ""))
+        if unexpected:
+            LOAD_NOTES.append(f"Unexpected keys: {', '.join(unexpected[:10])}" + (" ..." if len(unexpected) > 10 else ""))
     return model, class_names, T
 
 def load_model(model_path: str | None = None):
     """
     Memuat model dari path tetap: model/resnet9_finetuned.pt
-    Jika argumen diberikan, tetap prioritaskan path tetap ini sesuai permintaan user.
     """
     global CLASS_NAMES, TEMPERATURE
-    fixed_path = "model/resnet9_finetuned.pt"
+    LOAD_NOTES.clear()
 
+    fixed_path = "model/resnet9_finetuned.pt"
     if not os.path.exists(fixed_path):
         raise FileNotFoundError(f"File model tidak ditemukan di: {fixed_path}")
 
@@ -171,13 +201,14 @@ def load_model(model_path: str | None = None):
     CLASS_NAMES = list(class_names) if isinstance(class_names, (list, tuple)) else CLASS_NAMES
     TEMPERATURE = float(T) if T is not None else DEFAULT_T
 
+    # pastikan ReLU tidak inplace
     for m in model.modules():
         if isinstance(m, nn.ReLU):
             m.inplace = False
     model.eval()
     return model
 
-# ========= Prediksi (Softmax dengan Temperature Scaling) =========
+# ================= Prediksi (Softmax dengan Temperature Scaling) =================
 @torch.no_grad()
 def predict_image(model, image: Image.Image):
     """
