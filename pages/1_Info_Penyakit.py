@@ -56,7 +56,7 @@ diseases = {
         ],
         "severity": "Rendah → Sedang",
         "image": "Spider Mites.jpg",
-        "source":
+        "sources":
             "https://extension.umn.edu/yard-and-garden-insects/spider-mites", 
             "https://extension.oregonstate.edu/catalog/how-recognize-manage-spider-mites-home-garden",
             "https://extension.umn.edu/yard-and-garden-insects/spider-mites"
@@ -320,3 +320,4 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
