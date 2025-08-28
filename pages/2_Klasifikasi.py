@@ -1,7 +1,6 @@
-# prediksi.py diganti menjadi -> klasifikasi.py
-# -- Gate "tomato-only" (LAB + anti-skin, sederhana) + Prediksi Kelas
-# -- + Deteksi Kekuningan (chlorosis) & Indikator Kelayuan (wilt)
-# Tambahkan ke requirements.txt: opencv-python-headless>=4.9.0
+# klasifikasi.py
+# — Gate "tomato-only" + Prediksi Kelas (tanpa Grad-CAM) + Segmentasi Warna
+# Jalankan: streamlit run klasifikasi.py
 
 import streamlit as st
 from PIL import Image
@@ -13,7 +12,7 @@ import cv2
 
 from helper import (
     load_model,
-    predict_image,   # ← gunakan prediksi saja (tanpa Grad-CAM)
+    predict_image,
     CLASS_NAMES
 )
 
@@ -181,27 +180,27 @@ def _make_color_overlay(pil_img, masks, alpha=0.45):
     return Image.fromarray(overlay)
 
 # ========== Streamlit UI ==========
-st.set_page_config(page_title="🌿 Klasifikasi Penyakit Tanaman Tomat dengan fitur Deteksi Kekuningan & Kelayuan 🟡", layout="wide")
-st.title("🌿 Klasifikasi Penyakit Tanaman Tomat dengan fitur Deteksi Kekuningan & Kelayuan 🟡")
+st.set_page_config(page_title="🌿 Klasifikasi Penyakit Tanaman Tomat + Segmentasi Warna", layout="wide")
+st.title("🌿 Klasifikasi Penyakit Tanaman Tomat + Segmentasi Warna")
 
 if "history" not in st.session_state:
     st.session_state["history"] = []
 
-DISPLAY_CAP = 0.9700
+DISPLAY_CAP = 0.9900
 def cap_for_display(p: float, cap: float = DISPLAY_CAP) -> float:
     return p if p < cap else cap
 def fmt_pct(p: float, cap: float = DISPLAY_CAP, decimals: int = 2) -> str:
     q = cap_for_display(float(p), cap)
     return f"{q*100:.{decimals}f}%"
 
-# --- REVISI FUNGSI: METRIK DENGAN BACKGROUND BERWARNA ---
-def colored_metric(label, value, bg_color, text_color="#FFFFFF"): # Default text_color putih
+# --- Metric card sederhana ---
+def colored_metric(label, value, bg_color, text_color="#FFFFFF"):
     st.markdown(
         f"""
         <div style="
             border-radius: 0.5rem;
             padding: 1rem;
-            background-color: {bg_color}; /* Mengubah background color */
+            background-color: {bg_color};
             overflow-wrap: break-word;
             text-align: center;
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
@@ -216,20 +215,24 @@ def colored_metric(label, value, bg_color, text_color="#FFFFFF"): # Default text
 with st.sidebar:
     st.header("💡 Panduan Penggunaan")
     st.markdown("""
-    - **Unggah Gambar:** Siapkan foto daun tomat Anda (format JPG, JPEG, PNG).
-    - **Lihat Hasil:** Model akan otomatis menganalisis dan mengklasifikasi potensi penyakit setelah gambar diunggah.
+    - Unggah foto daun tomat (JPG/PNG) yang jelas.
+    - Aplikasi akan mengklasifikasikan penyakit & menyorot warna (kuning/cokelat/hijau).
     """)
-    st.info("Pastikan gambar hanya menampilkan satu daun tomat dalam kondisi pencahayaan yang baik untuk hasil terbaik.", icon="⚠️")
+    st.info("Sebaiknya satu daun, pencahayaan baik.", icon="⚠️")
     st.markdown("---")
-    
-    st.header("Pengaturan Tampilan")
+
+    # Path model dapat diubah di sini
+    model_path = st.text_input(
+        "Path file model .pt",
+        value="/mnt/data/resnet9_finetuned.pt",
+        help="Ubah jika file .pt kamu ada di lokasi lain."
+    )
+
     topk  = st.slider("Jumlah alternatif (Top-k)", 1, min(5, len(CLASS_NAMES)), 3, 1)
-    st.markdown("---")
-    show_full_chart = st.checkbox("Tampilkan chart probabilitas lengkap", True)
-    sort_desc = st.checkbox("Urutkan chart menurun", True)
+    show_full_chart = st.checkbox("Tampilkan chart probabilitas lengkap (A→Z)", True)
 
 # ----- Model -----
-model = load_model()
+model = load_model(model_path)
 
 # ----- Uploader -----
 uploaded_file = st.file_uploader("Upload gambar daun tomat", type=["jpg", "jpeg", "png"])
@@ -243,8 +246,9 @@ if uploaded_file:
         st.stop()
     leaf_mask01 = info_gate["mask"].astype(np.uint8)
 
-    pred_name, probs_raw, _ = predict_image(model, image)
-    used_idx = int(np.argmax(probs_raw))
+    # Prediksi (sudah temperature scaling di helper.predict_image)
+    pred_name, probs, logits = predict_image(model, image)
+    used_idx = int(np.argmax(probs))
 
     rgb = np.array(image.convert("RGB"))
     color_masks, color_stats = _color_masks_hsv(rgb, leaf_mask01)
@@ -264,33 +268,27 @@ if uploaded_file:
     with col2:
         st.image(
             color_overlay,
-            caption=f"Segmentasi Warna — Prediksi: {CLASS_NAMES[used_idx]} ({fmt_pct(probs_raw[used_idx])})",
+            caption=f"Segmentasi Warna — Prediksi: {CLASS_NAMES[used_idx]} ({fmt_pct(probs[used_idx])})",
             use_container_width=True
         )
 
-    with st.container(border=True): # Border utama untuk bagian "Deteksi Kekuningan & Kelayuan"
+    with st.container(border=True):
         st.subheader("📊 Deteksi Kekuningan & Kelayuan")
-        
-        with st.container(border=True): # Border untuk teks penjelasan
-            st.write("""
-            **Analisis Gejala Visual:** Informasi di bawah ini memetakan gejala visual seperti kekuningan (klorosis) dan kelayuan daun, **ini bukan diagnosis final**. Diperlukan pemeriksaan lapang lebih lanjut untuk konfirmasi.
-            """)
-        
+        with st.container(border=True):
+            st.write("**Analisis Gejala Visual:** Indikator klorosis & kelayuan bersifat pendukung, bukan diagnosis final.")
         st.markdown(" ")
 
-        # --- REVISI: Menggunakan fungsi colored_metric dengan background warna ---
         mcol1, mcol2, mcol3, mcol4 = st.columns(4)
         with mcol1:
-            colored_metric("Rasio Kuning", fmt_pct(color_stats["yellow_ratio"]), "#D1B000", "#000000") # Kuning, teks hitam
+            colored_metric("Rasio Kuning", fmt_pct(color_stats["yellow_ratio"]), "#D1B000", "#000000")
         with mcol2:
-            colored_metric("Rasio Cokelat", fmt_pct(color_stats["brown_ratio"]), "#A0522D") # Cokelat, teks putih (default)
+            colored_metric("Rasio Cokelat", fmt_pct(color_stats["brown_ratio"]), "#A0522D")
         with mcol3:
-            colored_metric("Solidity (kompaksi)", f"{shape_stats['solidity']:.2f}", "#404040") # Kehitaman, teks putih (default)
+            colored_metric("Solidity (kompaksi)", f"{shape_stats['solidity']:.2f}", "#404040")
         with mcol4:
-            colored_metric("Roughness (tepi)", f"{shape_stats['roughness']:.2f}", "#3CB371") # Kehijauan, teks putih (default)
-        
-        st.markdown(" ")
+            colored_metric("Roughness (tepi)", f"{shape_stats['roughness']:.2f}", "#3CB371")
 
+        st.markdown(" ")
         pcol1, pcol2 = st.columns(2)
         with pcol1:
             st.markdown(f"**Skor Kekuningan (0–1):** `{chlorosis_score:.2f}`")
@@ -298,38 +296,36 @@ if uploaded_file:
         with pcol2:
             st.markdown(f"**Skor Kelayuan (0–1):** `{wilt_score:.2f}`")
             st.progress(min(max(wilt_score,0.0),1.0))
-    
+
     st.markdown(" ")
+    # Alternatif Top-k (berdasar nilai, bukan A→Z)
     topk_ = min(topk, len(CLASS_NAMES))
-    order = np.argsort(-probs_raw)[:topk_]
+    order_val = np.argsort(-probs)[:topk_]
     st.markdown("**Alternatif (Top-k)**")
     st.markdown("\n".join([
-        f"{'★' if i==used_idx else '•'} {CLASS_NAMES[i]}: {fmt_pct(probs_raw[i])}"
-        for i in order
+        f"{'★' if i==used_idx else '•'} {CLASS_NAMES[i]}: {fmt_pct(probs[i])}"
+        for i in order_val
     ]))
 
     if show_full_chart:
-        st.subheader("📊 Probabilitas per Kelas (A→Z)")
-        probs_plot = np.minimum(np.array(probs_raw, dtype=float), DISPLAY_CAP)
-
-        # Urutan alfabet (case-insensitive) berdasarkan CLASS_NAMES
+        st.subheader("📊 Probabilitas per Kelas (A→Z, stabil)")
+        probs_plot = np.minimum(np.array(probs, dtype=float), DISPLAY_CAP)
         az_order = np.argsort(np.char.lower(np.array(CLASS_NAMES, dtype="U")))
         labels_az = [CLASS_NAMES[i] for i in az_order]
         values_az = probs_plot[az_order]
-
         fig, ax = plt.subplots()
         ax.barh(labels_az, values_az, height=0.6)
         ax.set_xlim(0, 1)
         ax.set_xlabel("Probabilitas")
         ax.set_ylabel("Kelas")
-        ax.invert_yaxis()  # supaya 'A' tampil di paling atas
+        ax.invert_yaxis()  # supaya 'A' berada di paling atas
         st.pyplot(fig)
 
     st.session_state["history"].append({
         "Tanggal": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "Nama File": uploaded_file.name,
         "Prediksi": CLASS_NAMES[used_idx],
-        "Probabilitas (display)": fmt_pct(probs_raw[used_idx]),
+        "Probabilitas (display)": fmt_pct(probs[used_idx]),
         "Rasio_Kuning": fmt_pct(color_stats["yellow_ratio"]),
         "Rasio_Cokelat": fmt_pct(color_stats["brown_ratio"]),
         "Solidity": f"{shape_stats['solidity']:.2f}",
@@ -346,10 +342,7 @@ if st.session_state["history"]:
     st.download_button("⬇️ Download CSV", csv, "histori_prediksi.csv", "text/csv")
 
 st.markdown("---")
-
-st.info( "Perlu diingat: Ini adalah alat diagnosis dengan bantuan Kecerdasan Buatan dan sebaiknya digunakan hanya sebagai panduan. Untuk diagnosis konklusif, konsultasikan dengan ahli patologi tanaman profesional."
-)
-
+st.info("Pengingat: Ini alat bantu berbasis AI. Untuk diagnosis pasti, konsultasikan dengan ahli patologi tanaman.")
 st.markdown(
     """
 <div style='text-align:center; font-size:14px;'>
@@ -361,6 +354,3 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
-
-
-
