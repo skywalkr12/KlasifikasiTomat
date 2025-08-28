@@ -1,6 +1,5 @@
 # klasifikasi.py
-# — Gate "tomato-only" + Prediksi Kelas (tanpa Grad-CAM) + Segmentasi Warna
-# Jalankan: streamlit run klasifikasi.py
+# — Prediksi + Segmentasi Warna (tanpa Grad-CAM), chart A→Z, path model tetap —
 
 import streamlit as st
 from PIL import Image
@@ -13,10 +12,11 @@ import cv2
 from helper import (
     load_model,
     predict_image,
-    CLASS_NAMES
+    CLASS_NAMES,
+    get_load_notes
 )
 
-# ========== Gate TOMATO-ONLY (LAB + anti-skin, ringkas) ==========
+# ---------- Gate & analitik warna (sama seperti sebelumnya) ----------
 def _leaf_mask_lab(img_rgb,
                    L_min=25, L_max=245,
                    a_green_max=-5, a_brown_min=12, b_yellow_min=10):
@@ -24,11 +24,9 @@ def _leaf_mask_lab(img_rgb,
     L, A, B = lab[..., 0], lab[..., 1], lab[..., 2]
     a = A.astype(np.int16) - 128
     b = B.astype(np.int16) - 128
-
     green  = (a <= a_green_max) & (L >= L_min) & (L <= L_max)
     yellow = (a >  a_green_max) & (a < a_brown_min) & (b >= b_yellow_min) & (L >= L_min) & (L <= L_max)
     brown  = (a >= a_brown_min) & (b >= b_yellow_min) & (L >= L_min)
-
     m = (green | yellow | brown).astype(np.uint8)
     m = cv2.morphologyEx(m, cv2.MORPH_OPEN,  np.ones((5,5), np.uint8))
     m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, np.ones((7,7), np.uint8))
@@ -47,8 +45,7 @@ def _largest_component_stats(mask01):
     comp = (labels == best).astype(np.uint8)
     frac = comp.mean()
     cnts, _ = cv2.findContours(comp, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    if not cnts:
-        return float(frac), 0.0
+    if not cnts: return float(frac), 0.0
     cnt = max(cnts, key=cv2.contourArea)
     hull = cv2.convexHull(cnt)
     sol = float(cv2.contourArea(cnt) / (cv2.contourArea(hull) + 1e-6))
@@ -57,7 +54,7 @@ def _largest_component_stats(mask01):
 def _green_ratio_hsv(img_rgb, mask01):
     hsv = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2HSV)
     H, S, V = hsv[...,0], hsv[...,1], hsv[...,2]
-    green = ((H>=35) & (H<=85) & (S>=28) & (V>=40)).astype(np.uint8)  # cv2: H∈[0,179]
+    green = ((H>=35) & (H<=85) & (S>=28) & (V>=40)).astype(np.uint8)
     g_in = int((green & mask01).sum())
     area = int(mask01.sum()) + 1
     return float(g_in) / float(area)
@@ -78,38 +75,31 @@ def tomato_gate(pil_image,
     frac, sol = _largest_component_stats(mask)
     green_r   = _green_ratio_hsv(rgb, mask)
     skin_r    = _skin_in_mask_ratio_ycrcb(rgb, mask)
-
     reasons = []
     if frac < min_mask_frac: reasons.append(f"mask kecil ({frac:.2f})")
     if frac > max_mask_frac: reasons.append(f"mask terlalu besar ({frac:.2f})")
     if sol  < min_solidity:  reasons.append(f"solidity rendah ({sol:.2f})")
     if green_r < min_green_ratio: reasons.append(f"hijau rendah ({green_r:.2f})")
     if skin_r  > max_skin_in_mask: reasons.append(f"pola kulit terdeteksi ({skin_r:.2f})")
-
     return (len(reasons) == 0), {
         "mask_frac": frac, "solidity": sol,
         "green_ratio": green_r, "skin_ratio": skin_r,
         "reasons": reasons, "mask": mask
     }
-# ========== END Gate ==========
 
-# ========== Analisis Kekuningan & Kelayuan ==========
 def _color_masks_hsv(img_rgb, leaf_mask01):
     hsv = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2HSV)
     H, S, V = hsv[...,0], hsv[...,1], hsv[...,2]
-
     green  = ((H>=35) & (H<=85)  & (S>=28) & (V>=40)).astype(np.uint8)
-    yellow = ((H>=20) & (H<=35)  & (S>=60) & (V>=60)).astype(np.uint8)  # chlorosis
+    yellow = ((H>=20) & (H<=35)  & (S>=60) & (V>=60)).astype(np.uint8)
     brown1 = ((H>=5)  & (H<=20)  & (S>=50) & (V>=25) & (V<=210)).astype(np.uint8)
     brown2 = ((H<5)               & (S>=60) & (V>=15) & (V<=180)).astype(np.uint8)
     brown  = (brown1 | brown2).astype(np.uint8)
-
     green  = green  & leaf_mask01
     yellow = yellow & leaf_mask01
     brown  = brown  & leaf_mask01
     total  = np.clip(green | yellow | brown, 0, 1).astype(np.uint8)
     area = int(total.sum()) + 1
-
     stats = {
         "green_ratio":  float(green.sum())  / area,
         "yellow_ratio": float(yellow.sum()) / area,
@@ -120,31 +110,27 @@ def _color_masks_hsv(img_rgb, leaf_mask01):
 
 def _shape_metrics_for_wilt(leaf_mask01):
     num, labels = cv2.connectedComponents(leaf_mask01)
-    if num <= 1:
-        return {"solidity": 0.0, "roughness": 0.0}
+    if num <= 1: return {"solidity": 0.0, "roughness": 0.0}
     best, area = 0, 0
     for lb in range(1, num):
         a = int((labels == lb).sum())
-        if a > area:
-            best, area = lb, a
+        if a > area: best, area = lb, a
     comp = (labels == best).astype(np.uint8)
     cnts, _ = cv2.findContours(comp, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    if not cnts:
-        return {"solidity": 0.0, "roughness": 0.0}
+    if not cnts: return {"solidity": 0.0, "roughness": 0.0}
     cnt  = max(cnts, key=cv2.contourArea)
     hull = cv2.convexHull(cnt)
     area_cnt  = max(cv2.contourArea(cnt), 1.0)
     area_hull = max(cv2.contourArea(hull), 1.0)
     perim = cv2.arcLength(cnt, closed=True)
-
     solidity = float(area_cnt / area_hull)
-    shape_factor = float((perim**2) / (4.0 * np.pi * area_cnt))  # 1 untuk lingkaran
+    shape_factor = float((perim**2) / (4.0 * np.pi * area_cnt))
     roughness = float(np.clip((shape_factor - 1.0) / 1.2, 0.0, 1.0))
     return {"solidity": solidity, "roughness": roughness}
 
 def _wilt_and_chlorosis_scores(color_stats, shape_stats):
     y = color_stats["yellow_ratio"]; g = color_stats["green_ratio"]
-    chl = np.clip(0.7*(y/0.25) + 0.3*((1.0-g)/0.5), 0.0, 1.0)
+    chl  = np.clip(0.7*(y/0.25) + 0.3*((1.0-g)/0.5), 0.0, 1.0)
     wilt = np.clip(0.6*((1.0 - shape_stats["solidity"])/0.75) + 0.4*(shape_stats["roughness"]), 0.0, 1.0)
     return float(chl), float(wilt)
 
@@ -164,7 +150,7 @@ def _make_color_overlay(pil_img, masks, alpha=0.45):
     overlay = np.clip(overlay, 0, 255).astype(np.uint8)
     return Image.fromarray(overlay)
 
-# ========== Streamlit UI ==========
+# ========== UI ==========
 st.set_page_config(page_title="🌿 Klasifikasi Penyakit Tomat + Segmentasi Warna", layout="wide")
 st.title("🌿 Klasifikasi Penyakit Tomat + Segmentasi Warna")
 
@@ -175,52 +161,31 @@ DISPLAY_CAP = 0.9900
 def cap_for_display(p: float, cap: float = DISPLAY_CAP) -> float:
     return p if p < cap else cap
 def fmt_pct(p: float, cap: float = DISPLAY_CAP, decimals: int = 2) -> str:
-    q = cap_for_display(float(p), cap)
-    return f"{q*100:.{decimals}f}%"
+    q = cap_for_display(float(p), cap); return f"{q*100:.{decimals}f}%"
 
-def colored_metric(label, value, bg_color, text_color="#FFFFFF"):
-    st.markdown(
-        f"""
-        <div style="
-            border-radius: 0.5rem;
-            padding: 1rem;
-            background-color: {bg_color};
-            overflow-wrap: break-word;
-            text-align: center;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
-            <div style="font-size: 0.875rem; color: {text_color}; margin-bottom: 0.25rem;">{label}</div>
-            <div style="font-size: 1.5rem; color: {text_color}; font-weight: normal;">{value}</div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-# ----- Sidebar (tanpa slider/field untuk path model) -----
 with st.sidebar:
-    st.header("Panduan Singkat")
+    st.header("Panduan singkat")
     st.markdown("- Unggah foto daun tomat (JPG/PNG) yang jelas.")
-    st.info("Sebaiknya satu daun, pencahayaan baik.", icon="⚠️")
-    st.markdown("---")
-    # Komponen yang sudah memang ada sebelumnya boleh tetap:
     topk  = st.slider("Jumlah alternatif (Top-k)", 1, min(5, len(CLASS_NAMES)), 3, 1)
-    show_full_chart = st.checkbox("Tampilkan chart probabilitas lengkap (A→Z)", True)
+    show_full_chart = st.checkbox("Chart probabilitas lengkap (A→Z)", True)
 
-# ----- Model (path tetap) -----
-model = load_model()  # akan selalu mengambil 'model/resnet9_finetuned.pt'
+# ----- Model -----
+model = load_model()  # path tetap: model/resnet9_finetuned.pt
+for note in get_load_notes():
+    st.info(note)
 
 # ----- Uploader -----
-uploaded_file = st.file_uploader("Upload gambar daun tomat", type=["jpg", "jpeg", "png"])
+uploaded_file = st.file_uploader("Upload gambar daun tomat", type=["jpg","jpeg","png"])
 
 if uploaded_file:
     image = Image.open(uploaded_file).convert("RGB")
 
     accept, info_gate = tomato_gate(image)
     if not accept:
-        st.error("❌ Ditolak: bukan daun tomat / kualitas kurang memadai → " + ", ".join(info_gate["reasons"]))
+        st.error("❌ Ditolak: " + ", ".join(info_gate["reasons"]))
         st.stop()
     leaf_mask01 = info_gate["mask"].astype(np.uint8)
 
-    # Prediksi (temperature scaling dilakukan di helper.predict_image)
     pred_name, probs, logits = predict_image(model, image)
     used_idx = int(np.argmax(probs))
 
@@ -230,7 +195,7 @@ if uploaded_file:
     chlorosis_score, wilt_score = _wilt_and_chlorosis_scores(color_stats, shape_stats)
     color_overlay = _make_color_overlay(image, color_masks, alpha=0.45)
 
-    col1, col2 = st.columns([1, 1])
+    col1, col2 = st.columns([1,1])
     with col1:
         st.image(image, caption="Input", use_container_width=True)
         st.caption(
@@ -248,51 +213,31 @@ if uploaded_file:
 
     with st.container(border=True):
         st.subheader("📊 Deteksi Kekuningan & Kelayuan")
-        with st.container(border=True):
-            st.write("**Analisis Gejala Visual:** Indikator klorosis & kelayuan bersifat pendukung, bukan diagnosis final.")
-        st.markdown(" ")
-
         mcol1, mcol2, mcol3, mcol4 = st.columns(4)
-        with mcol1:
-            colored_metric("Rasio Kuning", fmt_pct(color_stats["yellow_ratio"]), "#D1B000", "#000000")
-        with mcol2:
-            colored_metric("Rasio Cokelat", fmt_pct(color_stats["brown_ratio"]), "#A0522D")
-        with mcol3:
-            colored_metric("Solidity (kompaksi)", f"{shape_stats['solidity']:.2f}", "#404040")
-        with mcol4:
-            colored_metric("Roughness (tepi)", f"{shape_stats['roughness']:.2f}", "#3CB371")
-
-        st.markdown(" ")
+        with mcol1: st.metric("Rasio Kuning", fmt_pct(color_stats["yellow_ratio"]))
+        with mcol2: st.metric("Rasio Cokelat", fmt_pct(color_stats["brown_ratio"]))
+        with mcol3: st.metric("Solidity", f"{shape_stats['solidity']:.2f}")
+        with mcol4: st.metric("Roughness", f"{shape_stats['roughness']:.2f}")
         pcol1, pcol2 = st.columns(2)
-        with pcol1:
-            st.markdown(f"**Skor Kekuningan (0–1):** `{chlorosis_score:.2f}`")
-            st.progress(min(max(chlorosis_score,0.0),1.0))
-        with pcol2:
-            st.markdown(f"**Skor Kelayuan (0–1):** `{wilt_score:.2f}`")
-            st.progress(min(max(wilt_score,0.0),1.0))
+        with pcol1: st.markdown(f"**Skor Kekuningan (0–1):** `{chlorosis_score:.2f}`"); st.progress(min(max(chlorosis_score,0.0),1.0))
+        with pcol2: st.markdown(f"**Skor Kelayuan (0–1):** `{wilt_score:.2f}`"); st.progress(min(max(wilt_score,0.0),1.0))
 
     st.markdown(" ")
-    # Alternatif Top-k (berdasarkan nilai; ini memang dinamis)
     topk_ = min(topk, len(CLASS_NAMES))
-    order_val = np.argsort(-probs)[:topk_]
+    order = np.argsort(-probs)[:topk_]
     st.markdown("**Alternatif (Top-k)**")
-    st.markdown("\n".join([
-        f"{'★' if i==used_idx else '•'} {CLASS_NAMES[i]}: {fmt_pct(probs[i])}"
-        for i in order_val
-    ]))
+    st.markdown("\n".join([f"{'★' if i==used_idx else '•'} {CLASS_NAMES[i]}: {fmt_pct(probs[i])}" for i in order]))
 
     if show_full_chart:
-        st.subheader("📊 Probabilitas per Kelas (A→Z, stabil)")
+        st.subheader("📊 Probabilitas per Kelas (A→Z)")
         probs_plot = np.minimum(np.array(probs, dtype=float), DISPLAY_CAP)
         az_order = np.argsort(np.char.lower(np.array(CLASS_NAMES, dtype="U")))
         labels_az = [CLASS_NAMES[i] for i in az_order]
         values_az = probs_plot[az_order]
         fig, ax = plt.subplots()
         ax.barh(labels_az, values_az, height=0.6)
-        ax.set_xlim(0, 1)
-        ax.set_xlabel("Probabilitas")
-        ax.set_ylabel("Kelas")
-        ax.invert_yaxis()  # supaya 'A' berada di paling atas
+        ax.set_xlim(0,1); ax.set_xlabel("Probabilitas"); ax.set_ylabel("Kelas")
+        ax.invert_yaxis()
         st.pyplot(fig)
 
     st.session_state["history"].append({
