@@ -48,6 +48,7 @@ diseases = {
         ],
         "severity": "Rendah → Sedang",
         "image": "Spider Mites.jpg",
+        "sources": "https://www.vegetables.cornell.edu/pest-management/disease-factsheets/managing-tomato-diseases-successfully"
     },
 
     # ---------- 2) Leaf mold — RENDAH → SEDANG ----------
@@ -260,5 +261,6 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
 
 
