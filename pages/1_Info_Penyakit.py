@@ -37,10 +37,14 @@ diseases = {
         ],
         "severity": "—",
         "image": "Healthy.jpg",
+        "sources": "[1]https://www.vegetables.cornell.edu/pest-management/disease-factsheets/managing-tomato-diseases-successfully",
     },
 
     # ---------- 1) Spider mites — RENDAH → SEDANG ----------
-    "Spider Mites": {
+    "Spider Mites (tungau laba-laba)": {
+        "info": [
+            "Disebabkan oleh infestasi tungau (terutama Tetranychus urticae) yang mengisap cairan sel; populasi melonjak pada kondisi panas–kering/berdebu, mengakibatkan tanaman menjadi stres."
+        ],
         "desc": [
             "Bintik keperakan (stippling) & bronzing pada daun, kadang kecokelatan.",
             "Jaring halus di bawah daun; populasi meningkat pada kondisi panas–kering/berdebu."
@@ -51,11 +55,14 @@ diseases = {
         ],
         "severity": "Rendah → Sedang",
         "image": "Spider Mites.jpg",
-        "sources": "https://www.vegetables.cornell.edu/pest-management/disease-factsheets/managing-tomato-diseases-successfully"
+        "sources": "[1]https://extension.umn.edu/yard-and-garden-insects/spider-mites, [2]https://extension.oregonstate.edu/catalog/how-recognize-manage-spider-mites-home-garden, [3]https://extension.umn.edu/yard-and-garden-insects/spider-mites",
     },
 
     # ---------- 2) Leaf mold — RENDAH → SEDANG ----------
     "Leaf Mold": {
+         "info": [
+            " "
+        ],
         "desc": [
             "Bercak kuning di atas daun; bawah daun berlapis jamur zaitun/kehijauan (beludru).",
             "Dominan pada RH >85% (greenhouse/kanopi lembap)."
@@ -66,10 +73,14 @@ diseases = {
         ],
         "severity": "Rendah → Sedang",
         "image": "Leaf Mold.jpg",
+        "sources": "[1]https://ipm.ucanr.edu/home-and-landscape/spider-mites, [2]https://pnwhandbooks.org/insect/vegetable/vegetable-pests/hosts-pests/tomato-spider-mite",
     },
 
     # ---------- 3) Septoria leaf spot — SEDANG ----------
     "Septoria Leaf Spot": {
+        "info": [
+            " "
+        ],
         "desc": [
             "Bercak kecil banyak (±1–3 mm) berpusat pucat dengan titik hitam (pycnidia), terutama di daun bawah.",
             "Berpotensi defoliasi progresif bila tidak dikendalikan."
@@ -84,6 +95,9 @@ diseases = {
 
     # ---------- 4) Target spot — TINGGI ----------
     "Target Spot": {
+        "info": [
+            " "
+        ],
         "desc": [
             "Lesi bertarget (cincin konsentris) dengan pusat keabu-abuan; defoliasi di kanopi bagian dalam.",
             "Dapat mengenai buah (lesi berlekuk)."
@@ -98,6 +112,9 @@ diseases = {
 
     # ---------- 5) Early blight — TINGGI ----------
     "Early Blight": {
+        "info": [
+            " "
+        ],
         "desc": [
             "Bercak cokelat dengan lingkar konsentris ‘bullseye’ pada daun tua → defoliasi; dapat menjalar ke batang/buah.",
             "Dipicu kelembapan daun & percikan tanah."
@@ -112,6 +129,9 @@ diseases = {
 
     # ---------- 6) Bacterial spot — SEDANG → TINGGI (CABUT SELEKTIF KONTEKSTUAL) ----------
     "Bacterial Spot": {
+        "info": [
+            " "
+        ],
         "desc": [
             "Bercak kecil berair → nekrotik pada daun; tepi klorotik. Pada buah: bercak kasar/berlekuk.",
             "Sangat rawan di kondisi hangat–lembap; tidak ada kuratif spesifik."
@@ -127,6 +147,9 @@ diseases = {
 
     # ---------- 7) TMV/ToMV — TINGGI (ERADIKASI DIANJURKAN) ----------
     "Tomato Mosaic Virus (TMV)": {
+        "info": [
+            " "
+        ],
         "desc": [
             "Mozaik hijau–kuning, daun menyempit/keriting, tanaman kerdil.",
             "Penularan utama: mekanis & benih/permukaan alat (stabil dan menular tinggi)."
@@ -141,6 +164,9 @@ diseases = {
 
     # ---------- 8) TYLCV — SANGAT TINGGI → EKSTREM ----------
     "Tomato Yellow Leaf Curl Virus (TYLCV)": {
+        "info": [
+            " "
+        ],
         "desc": [
             "Daun kecil menguning & menggulung ke atas; tanaman kerdil; gugur bunga → kehilangan hasil signifikan.",
             "Vektor: kutu kebul *Bemisia tabaci*; tidak terbawa benih."
@@ -155,6 +181,9 @@ diseases = {
 
     # ---------- 9) Late blight — EKSTREM ----------
     "Late Blight": {
+        "info": [
+            " "
+        ],
         "desc": [
             "Bercak berminyak cepat meluas; tepi bawah daun bersporulasi putih; menyerang daun, batang, hingga buah.",
             "Penyakit komunitas yang sangat cepat menyebar pada cuaca sejuk–basah."
@@ -287,6 +316,7 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
 
 
 
