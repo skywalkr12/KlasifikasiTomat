@@ -62,7 +62,7 @@ diseases = {
     # ---------- 2) Leaf mold — RENDAH → SEDANG ----------
     "Leaf Mold": {
          "info": [
-            " "
+            "Disebabkan oleh jamur Passalora fulva; berkembang kuat pada kelembapan nisbi >85% dan kanopi/lembap (greenhouse/high tunnel)."
         ],
         "desc": [
             "Bercak kuning di atas daun; bawah daun berlapis jamur zaitun/kehijauan (beludru).",
@@ -74,7 +74,7 @@ diseases = {
         ],
         "severity": "Rendah → Sedang",
         "image": "Leaf Mold.jpg",
-        "sources": 
+        "sources": "[1] https://www.canr.msu.edu/news/tomato-leaf-mold-in-hoophouse-tomatoes, [2] https://extension.umn.edu/disease-management/tomato-leaf-mold?utm_source=chatgpt.com"
     },
 
     # ---------- 3) Septoria leaf spot — SEDANG ----------
@@ -317,6 +317,7 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
 
 
 
